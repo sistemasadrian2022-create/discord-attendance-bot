@@ -17,7 +17,7 @@ try:
 except ImportError:
     print("⚠️  python-dotenv no instalado. Instala con: pip install python-dotenv")
 
-# =========================
+# =========================.
 # CONFIGURACIÓN BÁSICA
 # =========================
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN") or "MTQwMzk1NjMwNDY5OTE5NTQ1Mw.GFGDK0.zf1SnzlJeuvGkZ3rsUlOAv2_RpONgAIY9stMW0"
@@ -362,24 +362,15 @@ class LogoutSelectorModal(ui.Modal):
             
             cantidad = int(cantidad_str)
             
-            # Cerrar modal actual y abrir el modal dinámico correspondiente
-            await interaction.response.send_message(
-                f"✅ **{cantidad} modelo{'s' if cantidad > 1 else ''}** - Abriendo formulario...",
-                ephemeral=True,
-                delete_after=1
-            )
+            # Abrir directamente el modal dinámico SIN enviar mensaje intermedio
+            if cantidad == 1:
+                modal = LogoutModal1Modelo(self.validacion_msg)
+            elif cantidad == 2:
+                modal = LogoutModal2Modelos(self.validacion_msg)
+            else:
+                modal = LogoutModal3Modelos(self.validacion_msg)
             
-            # Esperar un momento y abrir modal dinámico
-            await asyncio.sleep(0.5)
-            
-            # Crear vista con botón para abrir modal dinámico
-            view = AbrirModalDinamicoView(cantidad, self.validacion_msg)
-            
-            await interaction.followup.send(
-                f"📝 **Formulario para {cantidad} modelo{'s' if cantidad > 1 else ''}:**",
-                view=view,
-                ephemeral=True
-            )
+            await interaction.response.send_modal(modal)
         
         except Exception as e:
             print(f"❌ Error en selector: {e}")
@@ -389,38 +380,6 @@ class LogoutSelectorModal(ui.Modal):
             )
 
 # =========================
-# VISTA PARA ABRIR MODAL DINÁMICO
-# =========================
-class AbrirModalDinamicoView(ui.View):
-    def __init__(self, cantidad: int, validacion_msg: str = ""):
-        super().__init__(timeout=60)
-        self.cantidad = cantidad
-        self.validacion_msg = validacion_msg
-        
-        # Actualizar el label del botón con la cantidad
-        self.children[0].label = f"📝 Completar {self.cantidad} Modelo{'s' if self.cantidad > 1 else ''}"
-
-    @ui.button(
-        label=f"📝 Completar Modelos",  # Se actualizará dinámicamente
-        style=ButtonStyle.success,
-        emoji="📝"
-    )
-    async def abrir_formulario(self, interaction: discord.Interaction, button: ui.Button):
-        # Crear modal específico según cantidad
-        if self.cantidad == 1:
-            modal = LogoutModal1Modelo(self.validacion_msg)
-        elif self.cantidad == 2:
-            modal = LogoutModal2Modelos(self.validacion_msg)
-        elif self.cantidad == 3:
-            modal = LogoutModal3Modelos(self.validacion_msg)
-        else:
-            await interaction.response.send_message(
-                "❌ Error: Cantidad inválida",
-                ephemeral=True
-            )
-            return
-        
-        await interaction.response.send_modal(modal)
 
 # =========================
 # MODAL PARA 1 MODELO
