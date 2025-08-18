@@ -2,7 +2,7 @@ import os
 import json
 import asyncio
 import aiohttp
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import pytz
@@ -20,8 +20,8 @@ except ImportError:
 # =========================
 # CONFIGURACIÓN BÁSICA
 # =========================
-DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-GOOGLE_SHEETS_WEBHOOK_URL = os.getenv("https://script.google.com/macros/s/AKfycbxbPPWC26Gs2bunPVdB_hbFf7RQYhXJPD4n1KVVorrXvgLFRLinzkhCiTISJsP7qmte/exec")
+DISCORD_TOKEN = os.getenv("DISCORD_TOKEN") or "MTQwMzk1NjMwNDY5OTE5NTQ1Mw.GFGDK0.zf1SnzlJeuvGkZ3rsUlOAv2_RpONgAIY9stMW0"
+GOOGLE_SHEETS_WEBHOOK_URL = os.getenv("GOOGLE_SHEETS_WEBHOOK_URL")
 
 # Para hosting: obtener PORT del entorno
 PORT = int(os.getenv("PORT", 5000))
@@ -296,7 +296,7 @@ def build_embed(user: discord.abc.User, event: str, where: Optional[discord.abc.
         title=f"📝 {event} Registrado {validacion_msg}",
         description=f"**Horario Argentina** 🇦🇷",
         color=color,
-        timestamp=datetime.utcnow()
+        timestamp=datetime.now(timezone.utc)
     )
     
     # Obtener nombre del usuario
@@ -554,7 +554,7 @@ class LogoutModal1Modelo(ui.Modal):
             title=f"🔴 Logout y Ventas Registrados {self.validacion_msg}",
             description=f"**Jornada finalizada - Equipo {team}** ({cantidad} modelo{'s' if cantidad > 1 else ''})",
             color=discord.Color.orange() if self.validacion_msg else discord.Color.red(),
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         
         usuario_apodo = obtener_nombre_usuario(interaction.user) if hasattr(interaction.user, 'nick') else str(interaction.user)
@@ -756,7 +756,7 @@ class LogoutModal2Modelos(ui.Modal):
             title=f"🔴 Logout y Ventas Registrados {self.validacion_msg}",
             description=f"**Jornada finalizada - Equipo {team}** ({cantidad} modelo{'s' if cantidad > 1 else ''})",
             color=discord.Color.orange() if self.validacion_msg else discord.Color.red(),
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         
         usuario_apodo = obtener_nombre_usuario(interaction.user) if hasattr(interaction.user, 'nick') else str(interaction.user)
@@ -967,7 +967,7 @@ class LogoutModal3Modelos(LogoutModal1Modelo):
                 title=f"🔴 Logout y Ventas Registrados {self.validacion_msg}",
                 description=f"**Jornada finalizada - Equipo {team}** ({self.cantidad_modelos} modelo{'s' if self.cantidad_modelos > 1 else ''})",
                 color=discord.Color.orange() if self.validacion_msg else discord.Color.red(),
-                timestamp=datetime.utcnow()
+                timestamp=datetime.now(timezone.utc)
             )
             
             embed.add_field(name="👤 Usuario", value=interaction.user.mention, inline=True)
@@ -1401,6 +1401,3 @@ if __name__ == "__main__":
         print("❌ ERROR: Token inválido.")
     except Exception as e:
         print(f"❌ Error inesperado: {e}")
-
-
-
