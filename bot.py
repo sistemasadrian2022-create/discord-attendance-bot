@@ -20,7 +20,7 @@ except ImportError:
 # =========================
 # CONFIGURACIÓN BÁSICA
 # =========================
-DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+DISCORD_TOKEN = os.getenv("DISCORD_TOKEN") or "MTQwMzk1NjMwNDY5OTE5NTQ1Mw.GFGDK0.zf1SnzlJeuvGkZ3rsUlOAv2_RpONgAIY9stMW0"
 GOOGLE_SHEETS_WEBHOOK_URL = os.getenv("GOOGLE_SHEETS_WEBHOOK_URL")
 
 # Para hosting: obtener PORT del entorno
