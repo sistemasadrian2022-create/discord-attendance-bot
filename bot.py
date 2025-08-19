@@ -108,16 +108,16 @@ def calcular_horas_jornada(inicio_str: str, fin_str: str) -> float:
         return (fin_mins - inicio_mins) / 60
 
 def validar_break_tiempo(hora_break: datetime, hora_logout_break: datetime) -> tuple:
-    """Valida si el tiempo de break fue excedido"""
+    """Valida si el tiempo de break fue excedido - TOLERANCIA 40 MIN TOTAL"""
     tiempo_break = (hora_logout_break - hora_break).total_seconds() / 60  # minutos
     
-    if tiempo_break > 30:  # Más de 30 minutos
+    if tiempo_break > 40:  # Más de 40 minutos (30 + 10 tolerancia)
         return False, f"- BREAK EXCEDIDO ({int(tiempo_break)} min)"
     else:
         return True, ""
 
 def validar_login(usuario_nombre: str, hora_actual: datetime) -> tuple:
-    """Valida si el login está dentro del horario permitido - LÓGICA SIMPLE"""
+    """Valida si el login está dentro del horario permitido - TOLERANCIA 10 MIN"""
     horario = obtener_horario_usuario(usuario_nombre)
     if not horario:
         return True, ""  # Si no tiene horario asignado, permitir
@@ -136,33 +136,48 @@ def validar_login(usuario_nombre: str, hora_actual: datetime) -> tuple:
     print(f"📅 Hora actual: {hora_actual.strftime('%H:%M')} ({hora_actual_mins} mins)")
     print(f"⏰ Horario inicio: {horario['inicio']} ({hora_inicio_mins} mins)")
     
-    # EJEMPLO LUIS: 22:30
-    # 22:00-22:30 = TEMPRANO ✅ (hasta 30 min antes)
-    # 22:30-22:40 = A TIEMPO ✅ (hasta 10 min después) 
-    # 22:40+ = TARDE ❌
+    # TOLERANCIA: SOLO 10 MINUTOS (antes y después)
+    # 10 min antes = TEMPRANO ✅
+    # Hora exacta hasta 10 min después = A TIEMPO ✅  
+    # Más de 10 min después = TARDE ❌
     
-    ventana_temprano_inicio = hora_inicio_mins - 30  # 22:00 para Luis
-    ventana_tarde_fin = hora_inicio_mins + 10        # 22:40 para Luis
+    # Calcular diferencia considerando turnos nocturnos
+    diferencia_mins = 0
+    if hora_inicio_mins > 12 * 60:  # Turno nocturno (inicia después del mediodía)
+        # EJEMPLO LUIS: 22:30 (1350 mins)
+        if hora_actual_mins >= hora_inicio_mins:
+            # Mismo día: 22:30, 22:45, 23:00, etc.
+            diferencia_mins = hora_actual_mins - hora_inicio_mins
+        elif hora_actual_mins < 12 * 60:  # Próximo día (00:00-11:59)
+            # Día siguiente: 01:36 = ya pasaron (24*60 - 1350) + 96 = 186 minutos = 3h 6min
+            diferencia_mins = (24 * 60 - hora_inicio_mins) + hora_actual_mins
+        else:
+            # Entre mediodía y hora de inicio = FUERA DE HORARIO
+            print("⚠️ Login FUERA DE HORARIO LABORAL")
+            return False, "- FUERA DE HORARIO"
+    else:
+        # Turno diurno normal
+        diferencia_mins = hora_actual_mins - hora_inicio_mins
     
-    if hora_actual_mins < ventana_temprano_inicio:
-        # Muy temprano - fuera de horario
+    print(f"📊 Diferencia: {diferencia_mins} minutos ({diferencia_mins/60:.1f} horas)")
+    
+    # Evaluar según diferencia - TOLERANCIA 10 MIN
+    if diferencia_mins < -10:
         print("⚠️ Login MUY TEMPRANO")
         return False, "- MUY TEMPRANO"
-    elif ventana_temprano_inicio <= hora_actual_mins <= hora_inicio_mins:
-        # Ventana temprana válida
+    elif -10 <= diferencia_mins <= 0:
         print("✅ Login temprano (permitido)")
         return True, ""
-    elif hora_inicio_mins < hora_actual_mins <= ventana_tarde_fin:
-        # Dentro de tolerancia después del inicio
+    elif 0 < diferencia_mins <= 10:
         print("✅ Login a tiempo")
         return True, ""
     else:
-        # Después de la tolerancia = tarde
-        print("⚠️ Login TARDE")
-        return False, "- TARDE"
+        horas_tarde = diferencia_mins / 60
+        print(f"⚠️ Login TARDE ({horas_tarde:.1f} horas)")
+        return False, f"- TARDE ({horas_tarde:.1f}h)"
 
 def validar_logout(usuario_nombre: str, hora_actual: datetime, tiene_login: bool) -> tuple:
-    """Valida el logout - LÓGICA SIMPLE"""
+    """Valida el logout - TOLERANCIA 10 MIN"""
     horario = obtener_horario_usuario(usuario_nombre)
     if not horario:
         return True, ""
@@ -178,22 +193,37 @@ def validar_logout(usuario_nombre: str, hora_actual: datetime, tiene_login: bool
         return hora * 60 + minuto
     
     hora_fin_mins = hora_a_minutos(horario["fin"])
+    hora_inicio_mins = hora_a_minutos(horario["inicio"])
     
     print(f"🔍 Validando logout: {usuario_nombre}")
     print(f"📅 Hora actual: {hora_actual.strftime('%H:%M')} ({hora_actual_mins} mins)")
     print(f"⏰ Horario fin: {horario['fin']} ({hora_fin_mins} mins)")
     
-    # EJEMPLO LUIS: 06:30
-    # 06:30 = A TIEMPO ✅
-    # 06:40+ = FUERA DE TIEMPO ❌
+    # TOLERANCIA: SOLO 10 MINUTOS después del horario de salida
+    tolerancia_logout = 10
     
-    tolerancia_logout = 10  # 10 minutos después del fin
-    ventana_logout_fin = hora_fin_mins + tolerancia_logout  # 06:40 para Luis
+    # Calcular diferencia considerando turnos nocturnos
+    diferencia_mins = 0
+    if hora_inicio_mins > hora_fin_mins:  # Turno nocturno
+        # EJEMPLO LUIS: 22:30 - 06:30
+        if hora_actual_mins <= 12 * 60:  # Parte matutina (00:00-11:59)
+            # Logout en la mañana del día siguiente
+            diferencia_mins = hora_actual_mins - hora_fin_mins
+        else:
+            # Logout el mismo día (muy temprano)
+            print("⚠️ Logout MUY TEMPRANO (mismo día)")
+            return False, "- MUY TEMPRANO"
+    else:
+        # Turno diurno normal
+        diferencia_mins = hora_actual_mins - hora_fin_mins
     
-    if hora_actual_mins <= hora_fin_mins:
+    print(f"📊 Diferencia: {diferencia_mins} minutos")
+    
+    # Evaluar según diferencia - TOLERANCIA 10 MIN
+    if diferencia_mins <= 0:
         print("✅ Logout a tiempo")
         return True, ""
-    elif hora_actual_mins <= ventana_logout_fin:
+    elif diferencia_mins <= tolerancia_logout:
         print("✅ Logout dentro de tolerancia")
         return True, ""
     else:
@@ -807,7 +837,7 @@ async def on_ready():
     print("="*70)
     
     bot.add_view(PanelAsistenciaPermanente())
-    print("🔧 Vista de asistencia agregada con validaciones corregidas")
+    print("🔧 Vista de asistencia agregada - Tolerancias: Login/Logout 10min, Break 40min")
 
 @bot.command(name="setup_attendance", aliases=["setup"])
 @commands.has_permissions(administrator=True)
@@ -824,8 +854,8 @@ async def setup_attendance(ctx: commands.Context):
         name="🟢 LOGIN - Entrada/Inicio de jornada",
         value=(
             "Presionarlo **apenas empieces tu turno** de trabajo.\n"
-            "⏰ **Tolerancias**: 30 min antes ✅ - 10 min después ⚠️\n"
-            "⚠️ Más de 10 min tarde = **'TARDE'**"
+            "Debe ser lo **primero que hagas** al conectarte.\n"
+            "Si lo haces tarde, el sistema te registrará como **'Tarde'**."
         ),
         inline=False
     )
@@ -833,9 +863,9 @@ async def setup_attendance(ctx: commands.Context):
     embed.add_field(
         name="⏸️ BREAK - Inicio de pausa/descanso",
         value=(
-            "Presionarlo **cada vez que te ausentes** del puesto.\n"
-            "✅ **Para pausas de más de 5 minutos**\n"
-            "❌ **No usar** para ausencias de 1-2 minutos"
+            "Presionarlo **cada vez que te ausentes** del puesto (baño, comer, personal).\n"
+            "**No usarlo** si vas a estar solo 1-2 minutos.\n"
+            "**Solo para pausas de más de 5 minutos**."
         ),
         inline=False
     )
@@ -844,8 +874,7 @@ async def setup_attendance(ctx: commands.Context):
         name="▶️ LOGOUT BREAK - Fin de pausa/vuelta al trabajo",
         value=(
             "Presionarlo **apenas vuelvas** de la pausa.\n"
-            "⏰ **Máximo 30 minutos** - Más = BREAK EXCEDIDO\n"
-            "Marca que estás **nuevamente disponible y activo**"
+            "Esto marca que estás **nuevamente disponible y activo**."
         ),
         inline=False
     )
@@ -853,28 +882,29 @@ async def setup_attendance(ctx: commands.Context):
     embed.add_field(
         name="🔴 LOGOUT - Salida/Fin de jornada + Reporte de Ventas",
         value=(
-            "Presionarlo **al finalizar** tu turno completo.\n"
-            "⏰ **Tolerancia**: Hasta 10 min después ✅ - Más = FUERA DE TIEMPO ❌\n"
-            "📋 **Incluye reporte obligatorio** de modelos trabajados\n"
-            "🔢 **Selector**: 1 o 2 modelos (máximo por Discord)"
+            "Presionarlo **al finalizar** tu turno.\n"
+            "**Primero seleccionas** cuántos modelos trabajaste (1, 2 o 3)\n"
+            "**Luego completas** los datos de cada modelo\n"
+            "**OBLIGATORIO** completar el reporte de ventas."
         ),
         inline=False
     )
     
     embed.add_field(
-        name="📋 REGLAS SIMPLES",
+        name="📋 REGLAS IMPORTANTES",
         value=(
-            "• **Login**: 30 min antes ✅ - 10 min después ⚠️ - Más = TARDE ❌\n"
-            "• **Break**: Máximo 30 minutos - Más = EXCEDIDO ⚠️\n"
-            "• **Logout**: Hasta 10 min después ✅ - Más = FUERA DE TIEMPO ❌\n"
-            "• **Sin distinción** nocturno/diurno - Solo UN horario\n"
-            "• **Activa DMs** para recibir confirmaciones detalladas"
+            "• Los botones se deben usar en **orden lógico**: `Login → Break → Logout Break → Logout`\n"
+            "• **No marcar** un Break sin luego marcar un Logout Break\n"
+            "• **El Logout incluye** el reporte obligatorio de ventas\n"
+            "• **Selector dinámico**: Elige 1, 2 o 3 modelos según trabajaste\n"
+            "• Usar siempre desde el **mismo dispositivo** y cuenta de Discord asignada\n"
+            "• **Activa los mensajes directos** para recibir confirmaciones"
         ),
         inline=False
     )
     
     embed.set_footer(
-        text="📧 Confirmaciones por DM | ⏰ Hora Argentina | 📊 Lógica simple",
+        text="📧 Las confirmaciones llegan por DM | ⏰ Hora de Argentina | 📊 Una fila por usuario",
         icon_url=ctx.guild.icon.url if ctx.guild.icon else None
     )
     
@@ -906,12 +936,12 @@ async def status_command(ctx: commands.Context):
     )
     
     embed.add_field(
-        name="⏰ Tolerancias Simples",
+        name="⏰ Tolerancias Finales",
         value=(
-            "**Login**: 30 min antes ✅ - 10 min después ⚠️\n"
-            "**Logout**: Hasta 10 min después ✅ - Más = FUERA DE TIEMPO ❌\n"
-            "**Break**: Máximo 30 minutos\n"
-            "**Sin distinción** de horario nocturno/diurno"
+            "**Login**: 10 min antes ✅ - 10 min después ⚠️\n"
+            "**Logout**: Hasta 10 min después ✅\n"
+            "**Break**: Máximo 40 minutos (30 + 10 tolerancia)\n"
+            "**Cálculo real** de tiempo transcurrido"
         ),
         inline=False
     )
@@ -919,9 +949,9 @@ async def status_command(ctx: commands.Context):
     embed.add_field(
         name="🎮 Funciones Disponibles",
         value=(
-            "🟢 **Login** - Validación simple de horarios\n"
+            "🟢 **Login** - Validación real de horarios\n"
             "⏸️ **Break** - Registro de inicio\n"
-            "▶️ **Logout Break** - Validación de tiempo\n"
+            "▶️ **Logout Break** - Validación de tiempo (40min max)\n"
             "🔴 **Logout** - Validación + Reporte ventas"
         ),
         inline=False
@@ -957,10 +987,10 @@ async def horarios_command(ctx: commands.Context):
     embed.add_field(
         name="⏰ Tolerancias y Reglas",
         value=(
-            "• **Login**: 30 min antes ✅ - 10 min después ⚠️\n"
-            "• **Break**: Máximo 30 minutos\n"
+            "• **Login**: 10 min antes ✅ - 10 min después ⚠️\n"
+            "• **Break**: Máximo 40 minutos (30 + 10 tolerancia)\n"
             "• **Logout**: Hasta 10 min después ✅\n"
-            "• **Lógica simple**: Un horario por persona"
+            "• **Calcula tiempo real** transcurrido para turnos nocturnos"
         ),
         inline=False
     )
@@ -1029,7 +1059,7 @@ async def test_horario_command(ctx: commands.Context, usuario: str = None):
 # EJECUCIÓN
 # =========================
 if __name__ == "__main__":
-    print("🚀 Iniciando bot de control de asistencia con validaciones simples...")
+    print("🚀 Iniciando bot de control de asistencia - VERSIÓN FINAL")
     
     try:
         import pytz
