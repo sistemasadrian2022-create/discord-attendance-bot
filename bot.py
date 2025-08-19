@@ -425,7 +425,7 @@ class LogoutSelectorModal(ui.Modal):
             
             cantidad = int(cantidad_str)
             
-            # Crear mensaje con botón "Rellenar"
+            # Crear mensaje con botón "Rellenar" - NO EFÍMERO para poder eliminarlo
             embed = Embed(
                 title=f"📝 Logout con {cantidad} modelo{'s' if cantidad > 1 else ''}",
                 description=f"**Presiona el botón para completar los datos de {cantidad} modelo{'s' if cantidad > 1 else ''}:**",
@@ -435,10 +435,11 @@ class LogoutSelectorModal(ui.Modal):
             # Vista con botón para rellenar
             view = LogoutRellenarView(cantidad, self.validacion_msg)
             
+            # CAMBIO: Quitar ephemeral=True para poder eliminar el mensaje después
             await interaction.response.send_message(
                 embed=embed,
-                view=view,
-                ephemeral=True
+                view=view
+                # Sin ephemeral=True - ahora es visible para todos pero se eliminará
             )
         
         except Exception as e:
@@ -719,8 +720,12 @@ class LogoutModal1Modelo(ui.Modal):
             # NUEVO: Eliminar mensaje del botón "Rellenar" usando referencia directa
             if self.mensaje_rellenar:
                 try:
+                    # Pequeño delay para asegurar que el mensaje existe
+                    await asyncio.sleep(0.5)
                     await self.mensaje_rellenar.delete()
                     print(f"🗑️ Eliminado mensaje del botón Rellenar (referencia directa)")
+                except discord.NotFound:
+                    print(f"⚠️ Mensaje del botón ya fue eliminado")
                 except Exception as e:
                     print(f"⚠️ No se pudo eliminar mensaje del botón: {e}")
             
