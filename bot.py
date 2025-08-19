@@ -449,13 +449,14 @@ class LogoutSelectorModal(ui.Modal):
             )
 
 # =========================
-# VISTA CON BOTÓN "RELLENAR"
+# VISTA CON BOTÓN "RELLENAR" (MEJORADA)
 # =========================
 class LogoutRellenarView(ui.View):
     def __init__(self, cantidad_modelos: int, validacion_msg: str = ""):
         super().__init__(timeout=300)
         self.cantidad_modelos = cantidad_modelos
         self.validacion_msg = validacion_msg
+        self.mensaje_rellenar = None  # Guardar referencia del mensaje
 
     @ui.button(
         label=f"📝 Rellenar Datos",
@@ -464,11 +465,14 @@ class LogoutRellenarView(ui.View):
     )
     async def btn_rellenar(self, interaction: discord.Interaction, button: ui.Button):
         try:
+            # Guardar referencia del mensaje que contiene este botón
+            self.mensaje_rellenar = interaction.message
+            
             # Abrir modal según cantidad
             if self.cantidad_modelos == 1:
-                modal = LogoutModal1Modelo(self.validacion_msg)
+                modal = LogoutModal1Modelo(self.validacion_msg, self.mensaje_rellenar)
             else:
-                modal = LogoutModal2Modelos(self.validacion_msg)
+                modal = LogoutModal2Modelos(self.validacion_msg, self.mensaje_rellenar)
             
             await interaction.response.send_modal(modal)
             
@@ -619,9 +623,10 @@ class PanelAsistenciaPermanente(ui.View):
 # MODAL PARA 1 MODELO
 # =========================
 class LogoutModal1Modelo(ui.Modal):
-    def __init__(self, validacion_msg: str = ""):
+    def __init__(self, validacion_msg: str = "", mensaje_rellenar=None):
         super().__init__(title="LOGOUT - 1 MODELO", timeout=300)
         self.validacion_msg = validacion_msg
+        self.mensaje_rellenar = mensaje_rellenar  # Referencia del mensaje a eliminar
 
     modelo_1 = ui.TextInput(
         label="Modelo",
@@ -711,20 +716,13 @@ class LogoutModal1Modelo(ui.Modal):
                 view=None
             )
             
-            # NUEVO: Eliminar también el mensaje del botón "Rellenar"
-            # Buscar el mensaje del botón en el canal
-            try:
-                # Buscar mensajes recientes del bot en el canal del usuario
-                async for message in interaction.channel.history(limit=10):
-                    if (message.author == interaction.client.user and 
-                        message.interaction and 
-                        message.interaction.user == interaction.user and
-                        "Logout con" in str(message.embeds[0].title if message.embeds else "")):
-                        await message.delete()
-                        print(f"🗑️ Eliminado mensaje del botón Rellenar")
-                        break
-            except Exception as e:
-                print(f"⚠️ No se pudo eliminar mensaje del botón: {e}")
+            # NUEVO: Eliminar mensaje del botón "Rellenar" usando referencia directa
+            if self.mensaje_rellenar:
+                try:
+                    await self.mensaje_rellenar.delete()
+                    print(f"🗑️ Eliminado mensaje del botón Rellenar (referencia directa)")
+                except Exception as e:
+                    print(f"⚠️ No se pudo eliminar mensaje del botón: {e}")
             
             # Enviar DM
             await self._enviar_dm(interaction, embed, modelos_data, monto_total_bruto, team)
@@ -831,8 +829,8 @@ class LogoutModal1Modelo(ui.Modal):
 # MODAL PARA 2 MODELOS
 # =========================
 class LogoutModal2Modelos(LogoutModal1Modelo):
-    def __init__(self, validacion_msg: str = ""):
-        super().__init__(validacion_msg)
+    def __init__(self, validacion_msg: str = "", mensaje_rellenar=None):
+        super().__init__(validacion_msg, mensaje_rellenar)
         self.title = "LOGOUT - 2 MODELOS"
 
     # Campos adicionales para modelo 2
