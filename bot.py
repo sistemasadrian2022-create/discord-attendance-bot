@@ -372,7 +372,7 @@ def build_embed(user: discord.abc.User, event: str, where: Optional[discord.abc.
     return embed
 
 # =========================
-# MODAL SELECTOR DE CANTIDAD
+# MODAL SELECTOR DE CANTIDAD (PASO 1)
 # =========================
 class LogoutSelectorModal(ui.Modal):
     def __init__(self, validacion_msg: str = ""):
@@ -381,7 +381,7 @@ class LogoutSelectorModal(ui.Modal):
 
     cantidad_modelos = ui.TextInput(
         label="¿Cuántos modelos trabajaste?",
-        placeholder="Escribe: 1, 2 o 3",
+        placeholder="Escribe: 1 o 2",
         required=True,
         max_length=1,
         min_length=1
@@ -391,31 +391,232 @@ class LogoutSelectorModal(ui.Modal):
         try:
             cantidad_str = self.cantidad_modelos.value.strip()
             
-            if cantidad_str not in ['1', '2', '3']:
+            if cantidad_str not in ['1', '2']:
                 await interaction.response.send_message(
-                    "❌ **Error**: Debes escribir 1, 2 o 3",
+                    "❌ **Error**: Debes escribir 1 o 2 (máximo 2 modelos por limitación Discord)",
                     ephemeral=True
                 )
                 return
             
             cantidad = int(cantidad_str)
             
-            # Abrir modal específico según cantidad
-            if cantidad == 1:
-                modal = LogoutModal1Modelo(self.validacion_msg)
-            elif cantidad == 2:
-                modal = LogoutModal2Modelos(self.validacion_msg)
-            else:
-                modal = LogoutModal3Modelos(self.validacion_msg)
+            # Crear mensaje con botón "Rellenar"
+            embed = Embed(
+                title=f"📝 Logout con {cantidad} modelo{'s' if cantidad > 1 else ''}",
+                description=f"**Presiona el botón para completar los datos de {cantidad} modelo{'s' if cantidad > 1 else ''}:**",
+                color=discord.Color.blue()
+            )
             
-            await interaction.response.send_modal(modal)
+            # Vista con botón para rellenar
+            view = LogoutRellenarView(cantidad, self.validacion_msg)
+            
+            await interaction.response.send_message(
+                embed=embed,
+                view=view,
+                ephemeral=True
+            )
         
         except Exception as e:
             print(f"❌ Error en selector: {e}")
-            await interaction.followup.send(
-                "❌ Error procesando selección. Intenta nuevamente.",
+            await interaction.response.send_message(
+                "❌ Error procesando selección. Inténtalo nuevamente.",
                 ephemeral=True
             )
+
+# =========================
+# VISTA CON BOTÓN "RELLENAR"
+# =========================
+class LogoutRellenarView(ui.View):
+    def __init__(self, cantidad_modelos: int, validacion_msg: str = ""):
+        super().__init__(timeout=300)
+        self.cantidad_modelos = cantidad_modelos
+        self.validacion_msg = validacion_msg
+
+    @ui.button(
+        label=f"📝 Rellenar Datos",
+        style=ButtonStyle.primary,
+        emoji="📝"
+    )
+    async def btn_rellenar(self, interaction: discord.Interaction, button: ui.Button):
+        try:
+            # Abrir modal según cantidad
+            if self.cantidad_modelos == 1:
+                modal = LogoutModal1Modelo(self.validacion_msg)
+            else:
+                modal = LogoutModal2Modelos(self.validacion_msg)
+            
+            await interaction.response.send_modal(modal)
+            
+        except Exception as e:
+            print(f"❌ Error abriendo modal rellenar: {e}")
+            await interaction.response.send_message(
+                "❌ Error abriendo formulario. Inténtalo nuevamente.",
+                ephemeral=True
+            )
+class PanelAsistenciaPermanente(ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    async def _handle_simple_event(self, interaction: discord.Interaction, action: str, emoji: str, event_name: str):
+        """Maneja eventos simples con validaciones de horario"""
+        user = interaction.user
+        channel = interaction.channel
+        
+        try:
+            await interaction.response.send_message(
+                f"{emoji} **{event_name}** procesando...",
+                ephemeral=True,
+                delete_after=3
+            )
+            
+            # Obtener nombre del usuario
+            usuario_nombre = obtener_nombre_usuario(user) if hasattr(user, 'nick') else str(user)
+            hora_actual = datetime.now(TZ_ARGENTINA)
+            validacion_msg = ""
+            
+            # Validar según el tipo de evento
+            if action == "login":
+                _, validacion_msg = validar_login(usuario_nombre, hora_actual)
+            elif action == "break":
+                # Registrar inicio de break
+                breaks_activos[user.id] = hora_actual
+                print(f"📝 Break iniciado para {usuario_nombre} a las {hora_actual.strftime('%H:%M')}")
+            elif action == "logout_break":
+                # Validar tiempo de break si existe
+                if user.id in breaks_activos:
+                    hora_break = breaks_activos[user.id]
+                    _, validacion_msg = validar_break_tiempo(hora_break, hora_actual)
+                    del breaks_activos[user.id]  # Limpiar break
+                    print(f"📝 Break finalizado para {usuario_nombre}. {validacion_msg}")
+            
+            # Actualizar registro
+            success = await actualizar_registro_usuario(
+                user, action, interaction.guild, channel, validacion_msg=validacion_msg
+            )
+            
+            # Crear embed
+            embed = build_embed(user, event_name, channel, validacion_msg)
+            
+            # Preparar mensaje
+            if success:
+                dm_message = f"{emoji} **{event_name}** registrado exitosamente."
+            else:
+                dm_message = f"{emoji} **{event_name}** registrado localmente. ⚠️ Error con Google Sheets."
+            
+            if validacion_msg:
+                dm_message += f" {validacion_msg}"
+            
+            # Enviar confirmación por DM
+            try:
+                await user.send(content=dm_message, embed=embed)
+            except discord.Forbidden:
+                await interaction.followup.send(
+                    f"{emoji} {user.mention} **{event_name}** registrado.\n"
+                    f"💡 Activa los DMs para confirmaciones privadas.",
+                    ephemeral=True,
+                    delete_after=8
+                )
+            
+            # Log al canal
+            if LOG_CHANNEL_ID and success:
+                try:
+                    log_channel = interaction.client.get_channel(LOG_CHANNEL_ID)
+                    if log_channel and log_channel != channel:
+                        await log_channel.send(embed=embed)
+                except Exception as e:
+                    print(f"❌ Error enviando a canal de logs: {e}")
+                    
+        except Exception as e:
+            print(f"❌ Error en botón {event_name}: {e}")
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    f"❌ Error procesando **{event_name}**. Inténtalo nuevamente.",
+                    ephemeral=True,
+                    delete_after=5
+                )
+
+    @ui.button(
+        label="🟢 Login", 
+        style=ButtonStyle.success, 
+        custom_id="attendance_login",
+        row=0
+    )
+    async def btn_login(self, interaction: discord.Interaction, button: ui.Button):
+        await self._handle_simple_event(interaction, "login", "🟢", "Login")
+
+    @ui.button(
+        label="⏸️ Break", 
+        style=ButtonStyle.primary, 
+        custom_id="attendance_break",
+        row=0
+    )
+    async def btn_break(self, interaction: discord.Interaction, button: ui.Button):
+        await self._handle_simple_event(interaction, "break", "⏸️", "Break")
+
+    @ui.button(
+        label="▶️ Logout Break", 
+        style=ButtonStyle.secondary, 
+        custom_id="attendance_logout_break",
+        row=0
+    )
+    async def btn_logout_break(self, interaction: discord.Interaction, button: ui.Button):
+        await self._handle_simple_event(interaction, "logout_break", "▶️", "Logout Break")
+
+    @ui.button(
+        label="🔴 Logout (1 Modelo)", 
+        style=ButtonStyle.danger, 
+        custom_id="attendance_logout_1",
+        row=1
+    )
+    async def btn_logout_1(self, interaction: discord.Interaction, button: ui.Button):
+        """Logout directo con 1 modelo"""
+        try:
+            # Validar logout
+            usuario_nombre = obtener_nombre_usuario(interaction.user) if hasattr(interaction.user, 'nick') else str(interaction.user)
+            hora_actual = datetime.now(TZ_ARGENTINA)
+            
+            _, validacion_msg = validar_logout(usuario_nombre, hora_actual, True)
+            
+            # Abrir modal directo para 1 modelo
+            modal = LogoutModal1Modelo(validacion_msg)
+            await interaction.response.send_modal(modal)
+            
+        except Exception as e:
+            print(f"❌ Error en botón logout 1: {e}")
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    "❌ Error abriendo formulario de logout. Inténtalo nuevamente.",
+                    ephemeral=True,
+                    delete_after=5
+                )
+
+    @ui.button(
+        label="🔴 Logout (2 Modelos)", 
+        style=ButtonStyle.danger, 
+        custom_id="attendance_logout_2",
+        row=1
+    )
+    async def btn_logout_2(self, interaction: discord.Interaction, button: ui.Button):
+        """Logout directo con 2 modelos"""
+        try:
+            # Validar logout
+            usuario_nombre = obtener_nombre_usuario(interaction.user) if hasattr(interaction.user, 'nick') else str(interaction.user)
+            hora_actual = datetime.now(TZ_ARGENTINA)
+            
+            _, validacion_msg = validar_logout(usuario_nombre, hora_actual, True)
+            
+            # Abrir modal directo para 2 modelos
+            modal = LogoutModal2Modelos(validacion_msg)
+            await interaction.response.send_modal(modal)
+            
+        except Exception as e:
+            print(f"❌ Error en botón logout 2: {e}")
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    "❌ Error abriendo formulario de logout. Inténtalo nuevamente.",
+                    ephemeral=True,
+                    delete_after=5
+                )
 
 # =========================
 # MODAL PARA 1 MODELO
@@ -837,7 +1038,7 @@ async def on_ready():
     print("="*70)
     
     bot.add_view(PanelAsistenciaPermanente())
-    print("🔧 Vista de asistencia agregada - Tolerancias: Login/Logout 10min, Break 40min")
+    print("🔧 Vista de asistencia agregada - 5 BOTONES: Login, Break, Logout Break, Logout(1), Logout(2)")
 
 @bot.command(name="setup_attendance", aliases=["setup"])
 @commands.has_permissions(administrator=True)
@@ -882,9 +1083,9 @@ async def setup_attendance(ctx: commands.Context):
     embed.add_field(
         name="🔴 LOGOUT - Salida/Fin de jornada + Reporte de Ventas",
         value=(
-            "Presionarlo **al finalizar** tu turno.\n"
-            "**Primero seleccionas** cuántos modelos trabajaste (1, 2 o 3)\n"
-            "**Luego completas** los datos de cada modelo\n"
+            "**Usa los botones específicos:**\n"
+            "🔴 **Logout (1 Modelo)** - Para 1 modelo trabajado\n"
+            "🔴 **Logout (2 Modelos)** - Para 2 modelos trabajados\n"
             "**OBLIGATORIO** completar el reporte de ventas."
         ),
         inline=False
@@ -895,8 +1096,8 @@ async def setup_attendance(ctx: commands.Context):
         value=(
             "• Los botones se deben usar en **orden lógico**: `Login → Break → Logout Break → Logout`\n"
             "• **No marcar** un Break sin luego marcar un Logout Break\n"
-            "• **El Logout incluye** el reporte obligatorio de ventas\n"
-            "• **Selector dinámico**: Elige 1, 2 o 3 modelos según trabajaste\n"
+            "• **Usar botones específicos** de Logout según modelos trabajados\n"
+            "• **Máximo 2 modelos** por limitación de Discord\n"
             "• Usar siempre desde el **mismo dispositivo** y cuenta de Discord asignada\n"
             "• **Activa los mensajes directos** para recibir confirmaciones"
         ),
