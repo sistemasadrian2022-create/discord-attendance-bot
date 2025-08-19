@@ -704,22 +704,55 @@ class LogoutModal1Modelo(ui.Modal):
                 interaction, modelos_data, monto_total_bruto, team
             )
             
-            # Actualizar mensaje selector inicial
+            # Actualizar mensaje del modal (este)
             await interaction.edit_original_response(
                 content="✅ **Logout registrado exitosamente** - Revisa tu mensaje privado para más detalles.",
                 embed=None,
                 view=None
             )
             
+            # NUEVO: Eliminar también el mensaje del botón "Rellenar"
+            # Buscar el mensaje del botón en el canal
+            try:
+                # Buscar mensajes recientes del bot en el canal del usuario
+                async for message in interaction.channel.history(limit=10):
+                    if (message.author == interaction.client.user and 
+                        message.interaction and 
+                        message.interaction.user == interaction.user and
+                        "Logout con" in str(message.embeds[0].title if message.embeds else "")):
+                        await message.delete()
+                        print(f"🗑️ Eliminado mensaje del botón Rellenar")
+                        break
+            except Exception as e:
+                print(f"⚠️ No se pudo eliminar mensaje del botón: {e}")
+            
             # Enviar DM
             await self._enviar_dm(interaction, embed, modelos_data, monto_total_bruto, team)
             
-            # Eliminar mensaje después de 3 segundos
+            # Eliminar mensaje del modal después de 3 segundos
             await asyncio.sleep(3)
             try:
                 await interaction.delete_original_response()
-            except:
-                pass
+                print(f"🗑️ Eliminado mensaje del modal")
+            except Exception as e:
+                print(f"⚠️ No se pudo eliminar mensaje del modal: {e}")
+            
+            # Log al canal
+            if LOG_CHANNEL_ID:
+                try:
+                    log_channel = interaction.client.get_channel(LOG_CHANNEL_ID)
+                    if log_channel and log_channel != interaction.channel:
+                        await log_channel.send(embed=embed)
+                except Exception as e:
+                    print(f"❌ Error enviando a canal de logs: {e}")
+        
+        except Exception as e:
+            print(f"❌ Error procesando logout: {e}")
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    "❌ Error procesando logout. Inténtalo nuevamente.",
+                    ephemeral=True
+                )
             
             # Log al canal
             if LOG_CHANNEL_ID:
