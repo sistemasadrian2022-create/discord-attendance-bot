@@ -276,32 +276,57 @@ async def actualizar_registro_usuario(
         if modelos_data:
             print(f"📊 Modelos: {len(modelos_data)} modelos registrados")
         
-        timeout = aiohttp.ClientTimeout(total=10)
+        # Aumentar timeout a 30 segundos
+        timeout = aiohttp.ClientTimeout(total=30)
         
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(
-                GOOGLE_SHEETS_WEBHOOK_URL,
-                json=data,
-                headers={'Content-Type': 'application/json'}
-            ) as response:
-                
-                if response.status == 200:
-                    result = await response.json()
-                    if result.get("result") == "success":
-                        print(f"✅ Registro actualizado: {usuario_nombre} - {action} - {team}")
-                        return True
-                    else:
-                        print(f"❌ Error en Google Sheets: {result.get('error', 'Unknown error')}")
-                        return False
-                else:
-                    print(f"❌ HTTP Error {response.status} enviando a Google Sheets")
+            # Intentar hasta 2 veces
+            for intento in range(2):
+                try:
+                    async with session.post(
+                        GOOGLE_SHEETS_WEBHOOK_URL,
+                        json=data,
+                        headers={'Content-Type': 'application/json'}
+                    ) as response:
+                        
+                        if response.status == 200:
+                            result = await response.json()
+                            if result.get("result") == "success":
+                                print(f"✅ Registro actualizado: {usuario_nombre} - {action} - {team}")
+                                return True
+                            else:
+                                print(f"❌ Error en Google Sheets: {result.get('error', 'Unknown error')}")
+                                return False
+                        else:
+                            print(f"❌ HTTP Error {response.status} enviando a Google Sheets")
+                            if intento == 0:  # Si es el primer intento, reintentar
+                                print("🔄 Reintentando en 2 segundos...")
+                                await asyncio.sleep(2)
+                                continue
+                            return False
+                            
+                except asyncio.TimeoutError:
+                    print(f"❌ Timeout enviando a Google Sheets (intento {intento + 1}/2)")
+                    if intento == 0:  # Si es el primer intento, reintentar
+                        print("🔄 Reintentando en 2 segundos...")
+                        await asyncio.sleep(2)
+                        continue
                     return False
+                except Exception as e:
+                    print(f"❌ Error enviando a Google Sheets (intento {intento + 1}/2): {e}")
+                    if intento == 0:  # Si es el primer intento, reintentar
+                        print("🔄 Reintentando en 2 segundos...")
+                        await asyncio.sleep(2)
+                        continue
+                    return False
+                
+                # Si llegamos aquí, fue exitoso
+                break
+            
+            return False  # Si llegamos aquí, ambos intentos fallaron
                     
-    except asyncio.TimeoutError:
-        print("❌ Timeout enviando a Google Sheets (10 segundos)")
-        return False
     except Exception as e:
-        print(f"❌ Error enviando a Google Sheets: {e}")
+        print(f"❌ Error general enviando a Google Sheets: {e}")
         return False
 
 def build_embed(user: discord.abc.User, event: str, where: Optional[discord.abc.GuildChannel], validacion_msg: str = "") -> Embed:
@@ -563,13 +588,13 @@ class PanelAsistenciaPermanente(ui.View):
         await self._handle_simple_event(interaction, "logout_break", "▶️", "Logout Break")
 
     @ui.button(
-        label="🔴 Logout (1 Modelo)", 
+        label="🔴 Logout", 
         style=ButtonStyle.danger, 
-        custom_id="attendance_logout_1",
-        row=1
+        custom_id="attendance_logout",
+        row=0
     )
-    async def btn_logout_1(self, interaction: discord.Interaction, button: ui.Button):
-        """Logout directo con 1 modelo"""
+    async def btn_logout(self, interaction: discord.Interaction, button: ui.Button):
+        """Logout con modal selector"""
         try:
             # Validar logout
             usuario_nombre = obtener_nombre_usuario(interaction.user) if hasattr(interaction.user, 'nick') else str(interaction.user)
@@ -577,40 +602,12 @@ class PanelAsistenciaPermanente(ui.View):
             
             _, validacion_msg = validar_logout(usuario_nombre, hora_actual, True)
             
-            # Abrir modal directo para 1 modelo
-            modal = LogoutModal1Modelo(validacion_msg)
+            # Abrir modal selector
+            modal = LogoutSelectorModal(validacion_msg)
             await interaction.response.send_modal(modal)
             
         except Exception as e:
-            print(f"❌ Error en botón logout 1: {e}")
-            if not interaction.response.is_done():
-                await interaction.response.send_message(
-                    "❌ Error abriendo formulario de logout. Inténtalo nuevamente.",
-                    ephemeral=True,
-                    delete_after=5
-                )
-
-    @ui.button(
-        label="🔴 Logout (2 Modelos)", 
-        style=ButtonStyle.danger, 
-        custom_id="attendance_logout_2",
-        row=1
-    )
-    async def btn_logout_2(self, interaction: discord.Interaction, button: ui.Button):
-        """Logout directo con 2 modelos"""
-        try:
-            # Validar logout
-            usuario_nombre = obtener_nombre_usuario(interaction.user) if hasattr(interaction.user, 'nick') else str(interaction.user)
-            hora_actual = datetime.now(TZ_ARGENTINA)
-            
-            _, validacion_msg = validar_logout(usuario_nombre, hora_actual, True)
-            
-            # Abrir modal directo para 2 modelos
-            modal = LogoutModal2Modelos(validacion_msg)
-            await interaction.response.send_modal(modal)
-            
-        except Exception as e:
-            print(f"❌ Error en botón logout 2: {e}")
+            print(f"❌ Error en botón logout: {e}")
             if not interaction.response.is_done():
                 await interaction.response.send_message(
                     "❌ Error abriendo formulario de logout. Inténtalo nuevamente.",
@@ -707,10 +704,11 @@ class LogoutModal1Modelo(ui.Modal):
                 interaction, modelos_data, monto_total_bruto, team
             )
             
-            # Actualizar mensaje
+            # Actualizar mensaje selector inicial
             await interaction.edit_original_response(
                 content="✅ **Logout registrado exitosamente** - Revisa tu mensaje privado para más detalles.",
-                embed=None
+                embed=None,
+                view=None
             )
             
             # Enviar DM
@@ -1038,7 +1036,7 @@ async def on_ready():
     print("="*70)
     
     bot.add_view(PanelAsistenciaPermanente())
-    print("🔧 Vista de asistencia agregada - 5 BOTONES: Login, Break, Logout Break, Logout(1), Logout(2)")
+    print("🔧 Vista de asistencia agregada - Flujo: Logout → Selector → Botón Rellenar → Modal")
 
 @bot.command(name="setup_attendance", aliases=["setup"])
 @commands.has_permissions(administrator=True)
@@ -1083,9 +1081,10 @@ async def setup_attendance(ctx: commands.Context):
     embed.add_field(
         name="🔴 LOGOUT - Salida/Fin de jornada + Reporte de Ventas",
         value=(
-            "**Usa los botones específicos:**\n"
-            "🔴 **Logout (1 Modelo)** - Para 1 modelo trabajado\n"
-            "🔴 **Logout (2 Modelos)** - Para 2 modelos trabajados\n"
+            "Presionarlo **al finalizar** tu turno.\n"
+            "**Primero seleccionas** cuántos modelos trabajaste (1 o 2)\n"
+            "**Luego presionas** el botón 'Rellenar Datos'\n"
+            "**Finalmente completas** los datos de cada modelo\n"
             "**OBLIGATORIO** completar el reporte de ventas."
         ),
         inline=False
@@ -1096,7 +1095,8 @@ async def setup_attendance(ctx: commands.Context):
         value=(
             "• Los botones se deben usar en **orden lógico**: `Login → Break → Logout Break → Logout`\n"
             "• **No marcar** un Break sin luego marcar un Logout Break\n"
-            "• **Usar botones específicos** de Logout según modelos trabajados\n"
+            "• **El Logout incluye** el reporte obligatorio de ventas\n"
+            "• **Flujo Logout**: Selector → Botón Rellenar → Formulario → Completar\n"
             "• **Máximo 2 modelos** por limitación de Discord\n"
             "• Usar siempre desde el **mismo dispositivo** y cuenta de Discord asignada\n"
             "• **Activa los mensajes directos** para recibir confirmaciones"
@@ -1199,6 +1199,49 @@ async def horarios_command(ctx: commands.Context):
     embed.set_footer(text="Cada equipo registra en su propia hoja de Google Sheets")
     
     await ctx.reply(embed=embed, mention_author=False)
+
+@bot.command(name="test_sheets")
+@commands.has_permissions(administrator=True)
+async def test_sheets_command(ctx: commands.Context):
+    """Prueba la conexión con Google Sheets"""
+    if not GOOGLE_SHEETS_WEBHOOK_URL:
+        await ctx.reply("❌ **Google Sheets URL no configurada**")
+        return
+    
+    await ctx.reply("🔄 **Probando conexión con Google Sheets...**")
+    
+    try:
+        # Datos de prueba
+        test_data = {
+            "timestamp": datetime.now(TZ_ARGENTINA).isoformat(),
+            "usuario": "test_user",
+            "action": "test",
+            "team": "TEST",
+            "validacion": "- PRUEBA CONEXIÓN"
+        }
+        
+        timeout = aiohttp.ClientTimeout(total=30)
+        
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(
+                GOOGLE_SHEETS_WEBHOOK_URL,
+                json=test_data,
+                headers={'Content-Type': 'application/json'}
+            ) as response:
+                
+                if response.status == 200:
+                    result = await response.json()
+                    if result.get("result") == "success":
+                        await ctx.reply("✅ **Google Sheets funcionando correctamente**")
+                    else:
+                        await ctx.reply(f"❌ **Error en Google Sheets**: {result.get('error', 'Unknown error')}")
+                else:
+                    await ctx.reply(f"❌ **HTTP Error {response.status}** conectando a Google Sheets")
+                    
+    except asyncio.TimeoutError:
+        await ctx.reply("❌ **Timeout conectando a Google Sheets** (30 segundos)")
+    except Exception as e:
+        await ctx.reply(f"❌ **Error de conexión**: {str(e)}")
 
 @bot.command(name="test_horario")
 async def test_horario_command(ctx: commands.Context, usuario: str = None):
