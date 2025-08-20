@@ -42,23 +42,32 @@ TZ_ARGENTINA = pytz.timezone("America/Argentina/Buenos_Aires")
 breaks_activos = {}
 
 # =========================
-# HORARIOS DE USUARIOS CON EQUIPOS
+# HORARIOS DE USUARIOS CON EQUIPOS - ACTUALIZADO CON NOMBRES DE COLORES
 # =========================
 HORARIOS_USUARIOS = {
-    # TEAM 1
-    "mauricio t1": {"inicio": "05:00", "fin": "13:00", "team": "T1"},      # 8 horas
-    "antonio t1": {"inicio": "13:00", "fin": "21:00", "team": "T1"},       # 8 horas
-    "hosman t1": {"inicio": "21:00", "fin": "05:00", "team": "T1"},        # 8 horas (nocturno)
+    # TEAM 1 - BlackTeam
+    "mauricio t1": {"inicio": "05:00", "fin": "13:00", "team": "T1"},
+    "mauricio blackteam": {"inicio": "05:00", "fin": "13:00", "team": "T1"},
+    "antonio t1": {"inicio": "13:00", "fin": "21:00", "team": "T1"},
+    "antonio blackteam": {"inicio": "13:00", "fin": "21:00", "team": "T1"},
+    "hosman t1": {"inicio": "21:00", "fin": "05:00", "team": "T1"},
+    "hosman blackteam": {"inicio": "21:00", "fin": "05:00", "team": "T1"},
     
-    # TEAM 2
-    "gleidys t2": {"inicio": "06:30", "fin": "13:30", "team": "T2"},       # 7 horas
-    "yerika t2": {"inicio": "14:30", "fin": "22:30", "team": "T2"},        # 8 horas
-    "luis t2": {"inicio": "22:30", "fin": "06:30", "team": "T2"},          # 8 horas (nocturno)
+    # TEAM 2 - RedTeam
+    "gleidys t2": {"inicio": "06:30", "fin": "13:30", "team": "T2"},
+    "gleidys redteam": {"inicio": "06:30", "fin": "13:30", "team": "T2"},
+    "yerika t2": {"inicio": "14:30", "fin": "22:30", "team": "T2"},
+    "yerika redteam": {"inicio": "14:30", "fin": "22:30", "team": "T2"},
+    "luis t2": {"inicio": "22:30", "fin": "06:30", "team": "T2"},
+    "luis redteam": {"inicio": "22:30", "fin": "06:30", "team": "T2"},
     
-    # TEAM 3
-    "mariangela t3": {"inicio": "05:00", "fin": "13:00", "team": "T3"},    # 8 horas
-    "kyle t3": {"inicio": "13:00", "fin": "21:00", "team": "T3"},       # 8 horas
-    "stephen t3": {"inicio": "21:00", "fin": "05:00", "team": "T3"}           # 8 horas (nocturno)
+    # TEAM 3 - BlueTeam
+    "mariangela t3": {"inicio": "05:00", "fin": "13:00", "team": "T3"},
+    "mariangela blueteam": {"inicio": "05:00", "fin": "13:00", "team": "T3"},
+    "stephen t3": {"inicio": "13:00", "fin": "21:00", "team": "T3"},
+    "stephen blueteam": {"inicio": "13:00", "fin": "21:00", "team": "T3"},
+    "kyle t3": {"inicio": "21:00", "fin": "05:00", "team": "T3"},
+    "kyle blueteam": {"inicio": "21:00", "fin": "05:00", "team": "T3"}
 }
 
 def obtener_nombre_usuario(user: discord.Member) -> str:
@@ -68,7 +77,7 @@ def obtener_nombre_usuario(user: discord.Member) -> str:
     return user.display_name.lower()
 
 def obtener_info_usuario(nombre_usuario: str) -> dict:
-    """Obtiene el horario y equipo asignado al usuario"""
+    """Obtiene el horario y equipo asignado al usuario - MEJORADO para nombres de colores"""
     nombre_lower = nombre_usuario.lower().strip()
     
     # Buscar por nombre exacto
@@ -77,11 +86,22 @@ def obtener_info_usuario(nombre_usuario: str) -> dict:
         info["nombre_completo"] = nombre_lower
         return info
     
-    # Buscar por contenido parcial
-    for usuario, info in HORARIOS_USUARIOS.items():
-        if usuario in nombre_lower or any(palabra in nombre_lower for palabra in usuario.split()):
+    # Buscar por contenido parcial (nombre + team/color)
+    for usuario_key, info in HORARIOS_USUARIOS.items():
+        # Extraer solo el nombre base (sin t1/t2/t3/blackteam/redteam/blueteam)
+        nombre_base = usuario_key.split()[0]  # mauricio, antonio, hosman, etc.
+        
+        # Si el nombre del usuario contiene el nombre base
+        if nombre_base in nombre_lower:
             info_copy = info.copy()
-            info_copy["nombre_completo"] = usuario
+            info_copy["nombre_completo"] = usuario_key
+            return info_copy
+    
+    # Buscar por palabras individuales
+    for usuario_key, info in HORARIOS_USUARIOS.items():
+        if any(palabra in nombre_lower for palabra in usuario_key.split()):
+            info_copy = info.copy()
+            info_copy["nombre_completo"] = usuario_key
             return info_copy
     
     return None
@@ -483,6 +503,10 @@ class LogoutRellenarView(ui.View):
                 "❌ Error abriendo formulario. Inténtalo nuevamente.",
                 ephemeral=True
             )
+
+# =========================
+# PANEL DE ASISTENCIA PERMANENTE
+# =========================
 class PanelAsistenciaPermanente(ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -756,23 +780,6 @@ class LogoutModal1Modelo(ui.Modal):
                     "❌ Error procesando logout. Inténtalo nuevamente.",
                     ephemeral=True
                 )
-            
-            # Log al canal
-            if LOG_CHANNEL_ID:
-                try:
-                    log_channel = interaction.client.get_channel(LOG_CHANNEL_ID)
-                    if log_channel and log_channel != interaction.channel:
-                        await log_channel.send(embed=embed)
-                except Exception as e:
-                    print(f"❌ Error enviando a canal de logs: {e}")
-        
-        except Exception as e:
-            print(f"❌ Error procesando logout: {e}")
-            if not interaction.response.is_done():
-                await interaction.response.send_message(
-                    "❌ Error procesando logout. Inténtalo nuevamente.",
-                    ephemeral=True
-                )
 
     def _crear_embed_confirmacion(self, interaction, modelos_data, monto_total_bruto, team):
         cantidad = len(modelos_data)
@@ -868,184 +875,6 @@ class LogoutModal2Modelos(LogoutModal1Modelo):
         ])
 
 # =========================
-# MODAL PARA 3 MODELOS
-# =========================
-class LogoutModal3Modelos(LogoutModal1Modelo):
-    def __init__(self, validacion_msg: str = ""):
-        super().__init__(validacion_msg)
-        self.title = "LOGOUT - 3 MODELOS"
-
-    # Campos adicionales para modelos 2 y 3
-    modelo_2 = ui.TextInput(
-        label="Modelo 2",
-        placeholder="Nombre del modelo 2...",
-        required=True,
-        max_length=100
-    )
-    
-    monto_2 = ui.TextInput(
-        label="Monto Bruto 2",
-        placeholder="$",
-        required=True,
-        max_length=20
-    )
-    
-    modelo_3 = ui.TextInput(
-        label="Modelo 3",
-        placeholder="Nombre del modelo 3...",
-        required=True,
-        max_length=100
-    )
-
-    async def on_submit(self, interaction: discord.Interaction):
-        # Para 3 modelos, el tercero no tiene monto por limitación de Discord (máximo 5 campos)
-        await interaction.response.send_message(
-            "❌ **Limitación de Discord**: Solo se pueden registrar hasta 2 modelos con montos.\n"
-            "Para 3 modelos, usa el comando manual o registra por separado.",
-            ephemeral=True
-        )
-
-# =========================
-# VISTA CON 4 BOTONES
-# =========================
-class PanelAsistenciaPermanente(ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-
-    async def _handle_simple_event(self, interaction: discord.Interaction, action: str, emoji: str, event_name: str):
-        """Maneja eventos simples con validaciones de horario"""
-        user = interaction.user
-        channel = interaction.channel
-        
-        try:
-            await interaction.response.send_message(
-                f"{emoji} **{event_name}** procesando...",
-                ephemeral=True,
-                delete_after=3
-            )
-            
-            # Obtener nombre del usuario
-            usuario_nombre = obtener_nombre_usuario(user) if hasattr(user, 'nick') else str(user)
-            hora_actual = datetime.now(TZ_ARGENTINA)
-            validacion_msg = ""
-            
-            # Validar según el tipo de evento
-            if action == "login":
-                _, validacion_msg = validar_login(usuario_nombre, hora_actual)
-            elif action == "break":
-                # Registrar inicio de break
-                breaks_activos[user.id] = hora_actual
-                print(f"📝 Break iniciado para {usuario_nombre} a las {hora_actual.strftime('%H:%M')}")
-            elif action == "logout_break":
-                # Validar tiempo de break si existe
-                if user.id in breaks_activos:
-                    hora_break = breaks_activos[user.id]
-                    _, validacion_msg = validar_break_tiempo(hora_break, hora_actual)
-                    del breaks_activos[user.id]  # Limpiar break
-                    print(f"📝 Break finalizado para {usuario_nombre}. {validacion_msg}")
-            
-            # Actualizar registro
-            success = await actualizar_registro_usuario(
-                user, action, interaction.guild, channel, validacion_msg=validacion_msg
-            )
-            
-            # Crear embed
-            embed = build_embed(user, event_name, channel, validacion_msg)
-            
-            # Preparar mensaje
-            if success:
-                dm_message = f"{emoji} **{event_name}** registrado exitosamente."
-            else:
-                dm_message = f"{emoji} **{event_name}** registrado localmente. ⚠️ Error con Google Sheets."
-            
-            if validacion_msg:
-                dm_message += f" {validacion_msg}"
-            
-            # Enviar confirmación por DM
-            try:
-                await user.send(content=dm_message, embed=embed)
-            except discord.Forbidden:
-                await interaction.followup.send(
-                    f"{emoji} {user.mention} **{event_name}** registrado.\n"
-                    f"💡 Activa los DMs para confirmaciones privadas.",
-                    ephemeral=True,
-                    delete_after=8
-                )
-            
-            # Log al canal
-            if LOG_CHANNEL_ID and success:
-                try:
-                    log_channel = interaction.client.get_channel(LOG_CHANNEL_ID)
-                    if log_channel and log_channel != channel:
-                        await log_channel.send(embed=embed)
-                except Exception as e:
-                    print(f"❌ Error enviando a canal de logs: {e}")
-                    
-        except Exception as e:
-            print(f"❌ Error en botón {event_name}: {e}")
-            if not interaction.response.is_done():
-                await interaction.response.send_message(
-                    f"❌ Error procesando **{event_name}**. Inténtalo nuevamente.",
-                    ephemeral=True,
-                    delete_after=5
-                )
-
-    @ui.button(
-        label="🟢 Login", 
-        style=ButtonStyle.success, 
-        custom_id="attendance_login",
-        row=0
-    )
-    async def btn_login(self, interaction: discord.Interaction, button: ui.Button):
-        await self._handle_simple_event(interaction, "login", "🟢", "Login")
-
-    @ui.button(
-        label="⏸️ Break", 
-        style=ButtonStyle.primary, 
-        custom_id="attendance_break",
-        row=0
-    )
-    async def btn_break(self, interaction: discord.Interaction, button: ui.Button):
-        await self._handle_simple_event(interaction, "break", "⏸️", "Break")
-
-    @ui.button(
-        label="▶️ Logout Break", 
-        style=ButtonStyle.secondary, 
-        custom_id="attendance_logout_break",
-        row=0
-    )
-    async def btn_logout_break(self, interaction: discord.Interaction, button: ui.Button):
-        await self._handle_simple_event(interaction, "logout_break", "▶️", "Logout Break")
-
-    @ui.button(
-        label="🔴 Logout", 
-        style=ButtonStyle.danger, 
-        custom_id="attendance_logout",
-        row=0
-    )
-    async def btn_logout(self, interaction: discord.Interaction, button: ui.Button):
-        """Logout con modal selector"""
-        try:
-            # Validar logout
-            usuario_nombre = obtener_nombre_usuario(interaction.user) if hasattr(interaction.user, 'nick') else str(interaction.user)
-            hora_actual = datetime.now(TZ_ARGENTINA)
-            
-            _, validacion_msg = validar_logout(usuario_nombre, hora_actual, True)
-            
-            # Abrir modal selector
-            modal = LogoutSelectorModal(validacion_msg)
-            await interaction.response.send_modal(modal)
-            
-        except Exception as e:
-            print(f"❌ Error en botón logout: {e}")
-            if not interaction.response.is_done():
-                await interaction.response.send_message(
-                    "❌ Error abriendo formulario de logout. Inténtalo nuevamente.",
-                    ephemeral=True,
-                    delete_after=5
-                )
-
-# =========================
 # BOT SETUP
 # =========================
 intents = discord.Intents.default()
@@ -1067,12 +896,13 @@ async def on_ready():
     print(f"🏠 Servidores: {len(bot.guilds)}")
     print(f"📊 Google Sheets: {'✅ Configurado' if GOOGLE_SHEETS_WEBHOOK_URL else '❌ No configurado'}")
     print(f"🇦🇷 Zona horaria: Argentina (Buenos Aires)")
+    print(f"🎨 Soporte para nombres de colores: BlackTeam, RedTeam, BlueTeam")
     if GOOGLE_SHEETS_WEBHOOK_URL:
         print(f"🔗 URL: {GOOGLE_SHEETS_WEBHOOK_URL[:50]}...")
     print("="*70)
     
     bot.add_view(PanelAsistenciaPermanente())
-    print("🔧 Vista de asistencia agregada - Flujo: Logout → Selector → Botón Rellenar → Modal")
+    print("🔧 Vista de asistencia agregada - Soporte para jornadas laborales nocturnas")
 
 @bot.command(name="setup_attendance", aliases=["setup"])
 @commands.has_permissions(administrator=True)
@@ -1134,6 +964,7 @@ async def setup_attendance(ctx: commands.Context):
             "• **El Logout incluye** el reporte obligatorio de ventas\n"
             "• **Flujo Logout**: Selector → Botón Rellenar → Formulario → Completar\n"
             "• **Máximo 2 modelos** por limitación de Discord\n"
+            "• **Jornadas nocturnas** se registran en la misma fila\n"
             "• Usar siempre desde el **mismo dispositivo** y cuenta de Discord asignada\n"
             "• **Activa los mensajes directos** para recibir confirmaciones"
         ),
@@ -1141,7 +972,7 @@ async def setup_attendance(ctx: commands.Context):
     )
     
     embed.set_footer(
-        text="📧 Las confirmaciones llegan por DM | ⏰ Hora de Argentina | 📊 Una fila por usuario",
+        text="📧 Las confirmaciones llegan por DM | ⏰ Hora de Argentina | 🌙 Soporte jornadas nocturnas",
         icon_url=ctx.guild.icon.url if ctx.guild.icon else None
     )
     
@@ -1167,7 +998,8 @@ async def status_command(ctx: commands.Context):
             f"Bot: ✅ Conectado\n"
             f"Google Sheets: {'✅ Configurado' if GOOGLE_SHEETS_WEBHOOK_URL else '❌ No configurado'}\n"
             f"Zona horaria: `{TZ_ARGENTINA}`\n"
-            f"Canal logs: {'✅ Configurado' if LOG_CHANNEL_ID else '❌ No configurado'}"
+            f"Canal logs: {'✅ Configurado' if LOG_CHANNEL_ID else '❌ No configurado'}\n"
+            f"Jornadas nocturnas: ✅ Soportadas"
         ),
         inline=False
     )
@@ -1178,18 +1010,19 @@ async def status_command(ctx: commands.Context):
             "**Login**: 10 min antes ✅ - 10 min después ⚠️\n"
             "**Logout**: Hasta 10 min después ✅\n"
             "**Break**: Máximo 40 minutos (30 + 10 tolerancia)\n"
-            "**Cálculo real** de tiempo transcurrido"
+            "**Cálculo real** de tiempo transcurrido\n"
+            "**Turnos nocturnos**: Misma fila de jornada"
         ),
         inline=False
     )
     
     embed.add_field(
-        name="🎮 Funciones Disponibles",
+        name="🎨 Nombres Soportados",
         value=(
-            "🟢 **Login** - Validación real de horarios\n"
-            "⏸️ **Break** - Registro de inicio\n"
-            "▶️ **Logout Break** - Validación de tiempo (40min max)\n"
-            "🔴 **Logout** - Validación + Reporte ventas"
+            "**T1 BlackTeam**: Mauricio, Antonio, Hosman\n"
+            "**T2 RedTeam**: Gleidys, Yerika, Luis\n"
+            "**T3 BlueTeam**: Mariangela, Stephen, Kyle\n"
+            "✅ Acepta tanto `Luis T2` como `Luis RedTeam`"
         ),
         inline=False
     )
@@ -1204,20 +1037,36 @@ async def horarios_command(ctx: commands.Context):
         color=discord.Color.blue()
     )
     
-    # Organizar por equipos
-    equipos = {"T1": [], "T2": [], "T3": []}
+    # Organizar por equipos con nombres de colores
+    equipos_info = {
+        "T1": {"nombre": "BlackTeam", "color": "⚫", "miembros": []},
+        "T2": {"nombre": "RedTeam", "color": "🔴", "miembros": []},
+        "T3": {"nombre": "BlueTeam", "color": "🔵", "miembros": []}
+    }
+    
+    # Procesar solo entradas únicas (evitar duplicados T1/BlackTeam)
+    usuarios_procesados = set()
     
     for usuario, info in HORARIOS_USUARIOS.items():
+        # Extraer nombre base
+        nombre_base = usuario.split()[0].title()
         team = info["team"]
-        nombre = usuario.replace(f" {team.lower()}", "").title()
-        horas = calcular_horas_jornada(info["inicio"], info["fin"])
-        equipos[team].append(f"**{info['inicio']} - {info['fin']}** │ {nombre} ({horas}h)")
+        
+        # Solo procesar cada usuario una vez por equipo
+        if (nombre_base, team) not in usuarios_procesados:
+            horas = calcular_horas_jornada(info["inicio"], info["fin"])
+            turno_tipo = "🌙 Nocturno" if info["inicio"] > info["fin"] else "☀️ Diurno"
+            
+            equipos_info[team]["miembros"].append(
+                f"**{info['inicio']} - {info['fin']}** │ {nombre_base} ({horas}h) {turno_tipo}"
+            )
+            usuarios_procesados.add((nombre_base, team))
     
-    for team, miembros in equipos.items():
-        if miembros:
+    for team, info_equipo in equipos_info.items():
+        if info_equipo["miembros"]:
             embed.add_field(
-                name=f"🏆 EQUIPO {team}",
-                value="\n".join(miembros),
+                name=f"{info_equipo['color']} EQUIPO {team} - {info_equipo['nombre']}",
+                value="\n".join(info_equipo["miembros"]),
                 inline=False
             )
     
@@ -1227,7 +1076,19 @@ async def horarios_command(ctx: commands.Context):
             "• **Login**: 10 min antes ✅ - 10 min después ⚠️\n"
             "• **Break**: Máximo 40 minutos (30 + 10 tolerancia)\n"
             "• **Logout**: Hasta 10 min después ✅\n"
+            "• **Jornadas nocturnas**: Eventos en misma fila\n"
             "• **Calcula tiempo real** transcurrido para turnos nocturnos"
+        ),
+        inline=False
+    )
+    
+    embed.add_field(
+        name="🎨 Formato de Nombres Aceptados",
+        value=(
+            "• `Mauricio T1` o `Mauricio BlackTeam`\n"
+            "• `Luis T2` o `Luis RedTeam`\n"
+            "• `Stephen T3` o `Stephen BlueTeam`\n"
+            "• Sistema detecta automáticamente el equipo"
         ),
         inline=False
     )
@@ -1253,7 +1114,7 @@ async def test_sheets_command(ctx: commands.Context):
             "usuario": "test_user",
             "action": "test",
             "team": "TEST",
-            "validacion": "- PRUEBA CONEXIÓN"
+            "validacion": "- PRUEBA CONEXIÓN JORNADAS"
         }
         
         timeout = aiohttp.ClientTimeout(total=30)
@@ -1268,7 +1129,7 @@ async def test_sheets_command(ctx: commands.Context):
                 if response.status == 200:
                     result = await response.json()
                     if result.get("result") == "success":
-                        await ctx.reply("✅ **Google Sheets funcionando correctamente**")
+                        await ctx.reply("✅ **Google Sheets funcionando correctamente - Soporte jornadas laborales activo**")
                     else:
                         await ctx.reply(f"❌ **Error en Google Sheets**: {result.get('error', 'Unknown error')}")
                 else:
@@ -1280,10 +1141,10 @@ async def test_sheets_command(ctx: commands.Context):
         await ctx.reply(f"❌ **Error de conexión**: {str(e)}")
 
 @bot.command(name="test_horario")
-async def test_horario_command(ctx: commands.Context, usuario: str = None):
-    """Comando para probar validaciones de horario"""
+async def test_horario_command(ctx: commands.Context, *, usuario: str = None):
+    """Comando para probar validaciones de horario - Mejorado para nombres de colores"""
     if not usuario:
-        await ctx.reply("Uso: `!test_horario <nombre_usuario>`")
+        await ctx.reply("Uso: `!test_horario <nombre_usuario>`\nEjemplos: `Luis T2`, `Luis RedTeam`, `Mauricio BlackTeam`")
         return
     
     hora_actual = datetime.now(TZ_ARGENTINA)
@@ -1293,6 +1154,9 @@ async def test_horario_command(ctx: commands.Context, usuario: str = None):
     
     # Test logout
     _, msg_logout = validar_logout(usuario, hora_actual, True)
+    
+    # Obtener info del usuario
+    info_usuario = obtener_info_usuario(usuario)
     
     embed = Embed(
         title=f"🧪 Test de Validaciones - {usuario}",
@@ -1317,19 +1181,26 @@ async def test_horario_command(ctx: commands.Context, usuario: str = None):
         inline=True
     )
     
-    # Mostrar horario del usuario
-    horario = obtener_horario_usuario(usuario)
-    if horario:
+    if info_usuario:
+        horario = {"inicio": info_usuario["inicio"], "fin": info_usuario["fin"]}
         horas = calcular_horas_jornada(horario["inicio"], horario["fin"])
+        turno_tipo = "🌙 Nocturno" if horario["inicio"] > horario["fin"] else "☀️ Diurno"
+        
         embed.add_field(
             name="⏰ Horario Asignado",
-            value=f"`{horario['inicio']} - {horario['fin']}` ({horas}h)",
+            value=f"`{horario['inicio']} - {horario['fin']}` ({horas}h) {turno_tipo}",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🏆 Equipo Detectado",
+            value=f"`{info_usuario['team']}` - Usuario reconocido: `{info_usuario['nombre_completo']}`",
             inline=False
         )
     else:
         embed.add_field(
             name="⚠️ Horario",
-            value="Usuario no encontrado en la base de datos",
+            value="Usuario no encontrado en la base de datos.\nFormatos válidos: `Luis T2`, `Luis RedTeam`, `Mauricio BlackTeam`",
             inline=False
         )
     
@@ -1339,7 +1210,7 @@ async def test_horario_command(ctx: commands.Context, usuario: str = None):
 # EJECUCIÓN
 # =========================
 if __name__ == "__main__":
-    print("🚀 Iniciando bot de control de asistencia - VERSIÓN FINAL")
+    print("🚀 Iniciando bot de control de asistencia - VERSIÓN CON JORNADAS LABORALES")
     
     try:
         import pytz
@@ -1357,4 +1228,3 @@ if __name__ == "__main__":
         print("❌ ERROR: Token inválido.")
     except Exception as e:
         print(f"❌ Error inesperado: {e}")
-
