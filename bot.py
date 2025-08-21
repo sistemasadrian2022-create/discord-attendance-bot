@@ -64,10 +64,10 @@ HORARIOS_USUARIOS = {
     # TEAM 3 - BlueTeam
     "mariangela t3": {"inicio": "05:00", "fin": "13:00", "team": "T3"},
     "mariangela blueteam": {"inicio": "05:00", "fin": "13:00", "team": "T3"},
-    "stephen t3": {"inicio": "13:00", "fin": "21:00", "team": "T3"},
-    "stephen blueteam": {"inicio": "13:00", "fin": "21:00", "team": "T3"},
-    "kyle t3": {"inicio": "21:00", "fin": "05:00", "team": "T3"},
-    "kyle blueteam": {"inicio": "21:00", "fin": "05:00", "team": "T3"}
+    "stephen t3": {"inicio": "21:00", "fin": "05:00", "team": "T3"},
+    "stephen blueteam": {"inicio": "21:00", "fin": "05:00", "team": "T3"},
+    "kyle t3": {"inicio": "13:00", "fin": "21:00", "team": "T3"},
+    "kyle blueteam": {"inicio": "13:00", "fin": "21:00", "team": "T3"}
 }
 
 def obtener_nombre_usuario(user: discord.Member) -> str:
@@ -1228,3 +1228,4 @@ if __name__ == "__main__":
         print("❌ ERROR: Token inválido.")
     except Exception as e:
         print(f"❌ Error inesperado: {e}")
+
