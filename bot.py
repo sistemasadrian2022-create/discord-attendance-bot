@@ -21,7 +21,7 @@ except ImportError:
 # CONFIGURACIÓN BÁSICA
 # =========================
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN") or "MTQwMzk1NjMwNDY5OTE5NTQ1Mw.GFGDK0.zf1SnzlJeuvGkZ3rsUlOAv2_RpONgAIY9stMW0"
-GOOGLE_SHEETS_WEBHOOK_URL = os.getenv("GOOGLE_SHEETS_WEBHOOK_URL") or "https://script.google.com/macros/s/AKfycbz2sBsVENHhOnFvAW86KSfd_a5Qu0UZeVbcuXA-gGCI1AGn9aEV9w0Prwo0EdfJtxCH/exec"
+GOOGLE_SHEETS_WEBHOOK_URL = os.getenv("GOOGLE_SHEETS_WEBHOOK_URL") or "https://script.google.com/macros/s/AKfycbwjIgRW_6YPsJGE-twOXjEGJKzd5byyPF0JTl4DHeDEU-2TDSLVGQYlTppzUXOx5fAR/exec"
 
 # Para hosting: obtener PORT del entorno
 PORT = int(os.getenv("PORT", 5000))
@@ -1228,4 +1228,5 @@ if __name__ == "__main__":
         print("❌ ERROR: Token inválido.")
     except Exception as e:
         print(f"❌ Error inesperado: {e}")
+
 
