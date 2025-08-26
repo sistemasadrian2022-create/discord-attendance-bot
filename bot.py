@@ -56,8 +56,8 @@ HORARIOS_USUARIOS = {
     # TEAM 2 - RedTeam
     "gleidys t2": {"inicio": "06:30", "fin": "13:30", "team": "T2"},
     "gleidys redteam": {"inicio": "06:30", "fin": "13:30", "team": "T2"},
-    "yerika t2": {"inicio": "14:30", "fin": "22:30", "team": "T2"},
-    "yerika redteam": {"inicio": "14:30", "fin": "22:30", "team": "T2"},
+    "fran t2": {"inicio": "14:30", "fin": "22:30", "team": "T2"},
+    "fran redteam": {"inicio": "14:30", "fin": "22:30", "team": "T2"},
     "luis t2": {"inicio": "22:30", "fin": "06:30", "team": "T2"},
     "luis redteam": {"inicio": "22:30", "fin": "06:30", "team": "T2"},
     
@@ -1228,5 +1228,6 @@ if __name__ == "__main__":
         print("❌ ERROR: Token inválido.")
     except Exception as e:
         print(f"❌ Error inesperado: {e}")
+
 
 
