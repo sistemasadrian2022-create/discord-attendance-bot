@@ -426,7 +426,7 @@ class LogoutSelectorModal(ui.Modal):
 
     cantidad_modelos = ui.TextInput(
         label="¿Cuántos modelos trabajaste?",
-        placeholder="Escribe: 1 o 2",
+        placeholder="Escribe: 1, 2 o 3",
         required=True,
         max_length=1,
         min_length=1
@@ -436,9 +436,9 @@ class LogoutSelectorModal(ui.Modal):
         try:
             cantidad_str = self.cantidad_modelos.value.strip()
             
-            if cantidad_str not in ['1', '2']:
+            if cantidad_str not in ['1', '2', '3']:
                 await interaction.response.send_message(
-                    "❌ **Error**: Debes escribir 1 o 2 (máximo 2 modelos por limitación Discord)",
+                    "❌ **Error**: Debes escribir 1, 2 o 3 (máximo 3 modelos)",
                     ephemeral=True
                 )
                 return
@@ -492,8 +492,10 @@ class LogoutRellenarView(ui.View):
             # Abrir modal según cantidad
             if self.cantidad_modelos == 1:
                 modal = LogoutModal1Modelo(self.validacion_msg, self.mensaje_rellenar)
-            else:
+            elif self.cantidad_modelos == 2:
                 modal = LogoutModal2Modelos(self.validacion_msg, self.mensaje_rellenar)
+            else:
+                modal = LogoutModal3Modelos(self.validacion_msg, self.mensaje_rellenar)
             
             await interaction.response.send_modal(modal)
             
@@ -875,6 +877,62 @@ class LogoutModal2Modelos(LogoutModal1Modelo):
         ])
 
 # =========================
+# MODAL PARA 3 MODELOS
+# =========================
+class LogoutModal3Modelos(LogoutModal1Modelo):
+    def __init__(self, validacion_msg: str = "", mensaje_rellenar=None):
+        super().__init__(validacion_msg, mensaje_rellenar)
+        self.title = "LOGOUT - 3 MODELOS"
+
+    # Campos adicionales para modelo 2 y 3
+    modelo_2 = ui.TextInput(
+        label="Modelo 2",
+        placeholder="Nombre del modelo 2...",
+        required=True,
+        max_length=100
+    )
+    
+    monto_2 = ui.TextInput(
+        label="Monto Bruto 2",
+        placeholder="$",
+        required=True,
+        max_length=20
+    )
+
+    modelo_3 = ui.TextInput(
+        label="Modelo 3",
+        placeholder="Nombre del modelo 3...",
+        required=True,
+        max_length=100
+    )
+    
+    monto_3 = ui.TextInput(
+        label="Monto Bruto 3",
+        placeholder="$",
+        required=True,
+        max_length=20
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await self._procesar_logout(interaction, [
+            {
+                "numero": 1,
+                "nombre": self.modelo_1.value.strip(),
+                "monto_str": self.monto_1.value
+            },
+            {
+                "numero": 2,
+                "nombre": self.modelo_2.value.strip(),
+                "monto_str": self.monto_2.value
+            },
+            {
+                "numero": 3,
+                "nombre": self.modelo_3.value.strip(),
+                "monto_str": self.monto_3.value
+            }
+        ])
+
+# =========================
 # BOT SETUP
 # =========================
 intents = discord.Intents.default()
@@ -948,7 +1006,7 @@ async def setup_attendance(ctx: commands.Context):
         name="🔴 LOGOUT - Salida/Fin de jornada + Reporte de Ventas",
         value=(
             "Presionarlo **al finalizar** tu turno.\n"
-            "**Primero seleccionas** cuántos modelos trabajaste (1 o 2)\n"
+            "**Primero seleccionas** cuántos modelos trabajaste (1, 2 o 3)\n"
             "**Luego presionas** el botón 'Rellenar Datos'\n"
             "**Finalmente completas** los datos de cada modelo\n"
             "**OBLIGATORIO** completar el reporte de ventas."
@@ -963,7 +1021,7 @@ async def setup_attendance(ctx: commands.Context):
             "• **No marcar** un Break sin luego marcar un Logout Break\n"
             "• **El Logout incluye** el reporte obligatorio de ventas\n"
             "• **Flujo Logout**: Selector → Botón Rellenar → Formulario → Completar\n"
-            "• **Máximo 2 modelos** por limitación de Discord\n"
+            "• **Máximo 3 modelos** por sesión\n"
             "• **Jornadas nocturnas** se registran en la misma fila\n"
             "• Usar siempre desde el **mismo dispositivo** y cuenta de Discord asignada\n"
             "• **Activa los mensajes directos** para recibir confirmaciones"
@@ -972,7 +1030,7 @@ async def setup_attendance(ctx: commands.Context):
     )
     
     embed.set_footer(
-        text="📧 Las confirmaciones llegan por DM | ⏰ Hora de Argentina | 🌙 Soporte jornadas nocturnas",
+        text="📧 Las confirmaciones llegan por DM | ⏰ Hora de Argentina | 🌙 Soporte jornadas nocturnas | 📊 Hasta 3 modelos",
         icon_url=ctx.guild.icon.url if ctx.guild.icon else None
     )
     
@@ -1228,6 +1286,5 @@ if __name__ == "__main__":
         print("❌ ERROR: Token inválido.")
     except Exception as e:
         print(f"❌ Error inesperado: {e}")
-
 
 
