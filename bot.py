@@ -21,7 +21,7 @@ except ImportError:
 # CONFIGURACIÓN BÁSICA
 # =========================
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN") or "MTQwMzk1NjMwNDY5OTE5NTQ1Mw.GFGDK0.zf1SnzlJeuvGkZ3rsUlOAv2_RpONgAIY9stMW0"
-GOOGLE_SHEETS_WEBHOOK_URL = os.getenv("GOOGLE_SHEETS_WEBHOOK_URL") or "https://script.google.com/macros/s/AKfycbysRzknOadhTnvq1Ll5iadXcfpaHU7r3DhbA7WXVf3bugmhHsFOXB5hg_j7_F9mD1xb/exec"
+GOOGLE_SHEETS_WEBHOOK_URL = os.getenv("GOOGLE_SHEETS_WEBHOOK_URL") or "https://script.google.com/macros/s/AKfycbwjIgRW_6YPsJGE-twOXjEGJKzd5byyPF0JTl4DHeDEU-2TDSLVGQYlTppzUXOx5fAR/exec"
 
 # Para hosting: obtener PORT del entorno
 PORT = int(os.getenv("PORT", 5000))
@@ -40,6 +40,69 @@ TZ_ARGENTINA = pytz.timezone("America/Argentina/Buenos_Aires")
 
 # Variable global para trackear breaks
 breaks_activos = {}
+
+# =========================
+# FUNCIÓN PARA CALCULAR FECHA DE JORNADA LABORAL
+# =========================
+def calcular_fecha_jornada(usuario: str, timestamp: datetime) -> str:
+    """Calcula la fecha de jornada laboral considerando turnos nocturnos"""
+    horario = HORARIOS_USUARIOS.get(usuario.lower().strip())
+    
+    if not horario:
+        # Buscar por nombre base si no se encuentra exacto
+        usuario_lower = usuario.lower().strip()
+        for key, value in HORARIOS_USUARIOS.items():
+            nombre_base = key.split(' ')[0]  # mauricio, antonio, etc.
+            if nombre_base in usuario_lower:
+                horario = value
+                break
+    
+    if not horario:
+        # Si no tiene horario definido, usar fecha actual
+        return timestamp.strftime("%d/%m/%Y")
+    
+    hora_evento = timestamp.hour
+    minuto_evento = timestamp.minute
+    hora_inicio = int(horario["inicio"].split(':')[0])
+    minuto_inicio = int(horario["inicio"].split(':')[1])
+    hora_fin = int(horario["fin"].split(':')[0])
+    minuto_fin = int(horario["fin"].split(':')[1])
+    
+    # Convertir a minutos desde medianoche para comparación precisa
+    minutos_evento = hora_evento * 60 + minuto_evento
+    minutos_inicio = hora_inicio * 60 + minuto_inicio
+    minutos_fin = hora_fin * 60 + minuto_fin
+    
+    print(f"🕐 Análisis jornada: {usuario} - Evento: {hora_evento:02d}:{minuto_evento:02d} - Horario: {horario['inicio']}-{horario['fin']}")
+    print(f"🕐 Minutos - Evento: {minutos_evento}, Inicio: {minutos_inicio}, Fin: {minutos_fin}")
+    
+    # Determinar si es turno nocturno (cruza medianoche)
+    es_turno_nocturno = minutos_inicio > minutos_fin
+    
+    if es_turno_nocturno:
+        print("🌙 Turno nocturno detectado")
+        
+        if minutos_evento >= minutos_inicio:
+            # Está en la parte nocturna del mismo día (ej: 22:30, 23:30)
+            fecha_jornada = timestamp.strftime("%d/%m/%Y")
+            print(f"✅ Parte nocturna - misma fecha: {fecha_jornada}")
+            return fecha_jornada
+        elif minutos_evento <= minutos_fin:
+            # Está en la parte matutina del día siguiente (ej: 00:47, 06:15)
+            # La jornada corresponde al día anterior
+            fecha_anterior = timestamp - timedelta(days=1)
+            fecha_jornada = fecha_anterior.strftime("%d/%m/%Y")
+            print(f"✅ Parte matutina - día anterior: {fecha_jornada}")
+            return fecha_jornada
+        else:
+            # Fuera del horario laboral
+            print("⚠️ Fuera de horario laboral nocturno")
+            return timestamp.strftime("%d/%m/%Y")
+    else:
+        # Turno diurno normal - usar fecha actual
+        fecha_jornada = timestamp.strftime("%d/%m/%Y")
+        print(f"☀️ Turno diurno - fecha actual: {fecha_jornada}")
+        return fecha_jornada
 
 # =========================
 # HORARIOS DE USUARIOS CON EQUIPOS - ACTUALIZADO CON NOMBRES DE COLORES
@@ -279,11 +342,15 @@ async def actualizar_registro_usuario(
         info_usuario = obtener_info_usuario(usuario_nombre)
         team = info_usuario["team"] if info_usuario else "SIN_EQUIPO"
         
+        # Calcular fecha de jornada laboral para turnos nocturnos
+        fecha_jornada = calcular_fecha_jornada(usuario_nombre, timestamp_argentina)
+        
         data = {
             "timestamp": timestamp_argentina.isoformat(),
             "usuario": usuario_nombre,
             "action": action,
             "team": team,
+            "fecha_jornada": fecha_jornada,
             "validacion": validacion_msg or ""
         }
         
