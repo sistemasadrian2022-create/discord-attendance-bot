@@ -877,14 +877,23 @@ class LogoutModal2Modelos(LogoutModal1Modelo):
         ])
 
 # =========================
-# MODAL PARA 3 MODELOS
+# MODAL PARA 3 MODELOS - CAMPOS SEPARADOS (OPTIMIZADO)
 # =========================
-class LogoutModal3Modelos(LogoutModal1Modelo):
+class LogoutModal3Modelos(ui.Modal):
     def __init__(self, validacion_msg: str = "", mensaje_rellenar=None):
-        super().__init__(validacion_msg, mensaje_rellenar)
-        self.title = "LOGOUT - 3 MODELOS"
+        super().__init__(title="LOGOUT - 3 MODELOS", timeout=300)
+        self.validacion_msg = validacion_msg
+        self.mensaje_rellenar = mensaje_rellenar
 
-    # Campos adicionales para modelo 2 y 3
+    # Modelo 1
+    modelo_1 = ui.TextInput(
+        label="Modelo 1",
+        placeholder="Nombre del modelo 1...",
+        required=True,
+        max_length=100
+    )
+    
+    # Modelo 2
     modelo_2 = ui.TextInput(
         label="Modelo 2",
         placeholder="Nombre del modelo 2...",
@@ -892,13 +901,7 @@ class LogoutModal3Modelos(LogoutModal1Modelo):
         max_length=100
     )
     
-    monto_2 = ui.TextInput(
-        label="Monto Bruto 2",
-        placeholder="$",
-        required=True,
-        max_length=20
-    )
-
+    # Modelo 3
     modelo_3 = ui.TextInput(
         label="Modelo 3",
         placeholder="Nombre del modelo 3...",
@@ -906,31 +909,214 @@ class LogoutModal3Modelos(LogoutModal1Modelo):
         max_length=100
     )
     
-    monto_3 = ui.TextInput(
-        label="Monto Bruto 3",
-        placeholder="$",
+    # Montos de los 3 modelos en un solo campo (separados por comas)
+    montos_todos = ui.TextInput(
+        label="Montos (separados por comas)",
+        placeholder="Ejemplo: 500, 300, 400",
         required=True,
-        max_length=20
+        max_length=100
     )
+    
 
     async def on_submit(self, interaction: discord.Interaction):
-        await self._procesar_logout(interaction, [
-            {
-                "numero": 1,
-                "nombre": self.modelo_1.value.strip(),
-                "monto_str": self.monto_1.value
-            },
-            {
-                "numero": 2,
-                "nombre": self.modelo_2.value.strip(),
-                "monto_str": self.monto_2.value
-            },
-            {
-                "numero": 3,
-                "nombre": self.modelo_3.value.strip(),
-                "monto_str": self.monto_3.value
-            }
-        ])
+        await self._procesar_logout(interaction)
+
+    async def _procesar_logout(self, interaction: discord.Interaction):
+        try:
+            await interaction.response.send_message(
+                "🔴 **Procesando logout y reporte de ventas...** ⏳",
+                ephemeral=True
+            )
+            
+            # Obtener nombres de modelos
+            nombres = [
+                self.modelo_1.value.strip(),
+                self.modelo_2.value.strip(), 
+                self.modelo_3.value.strip()
+            ]
+            
+            # Validar que todos los nombres estén completos
+            for i, nombre in enumerate(nombres):
+                if not nombre:
+                    await interaction.followup.send(
+                        f"❌ **Error**: El nombre del Modelo {i+1} es obligatorio",
+                        ephemeral=True
+                    )
+                    return
+            
+            # Parsear montos separados por comas
+            montos_str = self.montos_todos.value.strip()
+            try:
+                montos_partes = [monto.strip().replace("$", "").replace(",", "") for monto in montos_str.split(",")]
+                
+                if len(montos_partes) != 3:
+                    await interaction.followup.send(
+                        "❌ **Error**: Debes proporcionar exactamente 3 montos separados por comas\n"
+                        "**Ejemplo**: 500, 300, 400",
+                        ephemeral=True
+                    )
+                    return
+                
+                montos = []
+                for i, monto_str in enumerate(montos_partes):
+                    try:
+                        monto = float(monto_str)
+                        montos.append(monto)
+                    except ValueError:
+                        await interaction.followup.send(
+                            f"❌ **Error**: El monto {i+1} debe ser un número válido\n"
+                            f"Valor recibido: '{monto_str}'",
+                            ephemeral=True
+                        )
+                        return
+                        
+            except Exception as e:
+                await interaction.followup.send(
+                    "❌ **Error**: Formato de montos incorrecto\n"
+                    "**Formato esperado**: monto1, monto2, monto3\n"
+                    "**Ejemplo**: 500, 300, 400",
+                    ephemeral=True
+                )
+                return
+            
+            # Procesar y validar modelos
+            modelos_data = []
+            monto_total_bruto = 0
+            
+            for i in range(3):
+                nombre = nombres[i]
+                monto_bruto = montos[i]
+                monto_neto = monto_bruto * 0.80
+                monto_total_bruto += monto_bruto
+                
+                modelos_data.append({
+                    "numero": i + 1,
+                    "nombre": nombre,
+                    "monto_bruto": monto_bruto,
+                    "monto_neto": monto_neto
+                })
+            
+            # Obtener información del usuario
+            usuario_apodo = obtener_nombre_usuario(interaction.user) if hasattr(interaction.user, 'nick') else str(interaction.user)
+            info_usuario = obtener_info_usuario(usuario_apodo)
+            team = info_usuario["team"] if info_usuario else "SIN_EQUIPO"
+            
+            # Actualizar registro
+            success = await actualizar_registro_usuario(
+                interaction.user,
+                "logout",
+                interaction.guild,
+                interaction.channel,
+                modelos_data=modelos_data,
+                validacion_msg=self.validacion_msg
+            )
+            
+            # Crear embed
+            embed = self._crear_embed_confirmacion(
+                interaction, modelos_data, monto_total_bruto, team
+            )
+            
+            # Actualizar mensaje del modal
+            await interaction.edit_original_response(
+                content="✅ **Logout registrado exitosamente** - Revisa tu mensaje privado para más detalles.",
+                embed=None,
+                view=None
+            )
+            
+            # Eliminar mensaje del botón "Rellenar" si existe
+            if self.mensaje_rellenar:
+                try:
+                    await asyncio.sleep(0.5)
+                    await self.mensaje_rellenar.delete()
+                    print(f"🗑️ Eliminado mensaje del botón Rellenar")
+                except discord.NotFound:
+                    print(f"⚠️ Mensaje del botón ya fue eliminado")
+                except Exception as e:
+                    print(f"⚠️ No se pudo eliminar mensaje del botón: {e}")
+            
+            # Enviar DM
+            await self._enviar_dm(interaction, embed, modelos_data, monto_total_bruto, team)
+            
+            # Eliminar mensaje del modal después de 3 segundos
+            await asyncio.sleep(3)
+            try:
+                await interaction.delete_original_response()
+                print(f"🗑️ Eliminado mensaje del modal")
+            except Exception as e:
+                print(f"⚠️ No se pudo eliminar mensaje del modal: {e}")
+            
+            # Log al canal
+            if LOG_CHANNEL_ID:
+                try:
+                    log_channel = interaction.client.get_channel(LOG_CHANNEL_ID)
+                    if log_channel and log_channel != interaction.channel:
+                        await log_channel.send(embed=embed)
+                except Exception as e:
+                    print(f"❌ Error enviando a canal de logs: {e}")
+        
+        except Exception as e:
+            print(f"❌ Error procesando logout: {e}")
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    "❌ Error procesando logout. Inténtalo nuevamente.",
+                    ephemeral=True
+                )
+
+    def _crear_embed_confirmacion(self, interaction, modelos_data, monto_total_bruto, team):
+        cantidad = len(modelos_data)
+        monto_total_neto = monto_total_bruto * 0.80
+        
+        embed = Embed(
+            title=f"🔴 Logout y Ventas Registrados {self.validacion_msg}",
+            description=f"**Jornada finalizada - Equipo {team}** ({cantidad} modelos)",
+            color=discord.Color.orange() if self.validacion_msg else discord.Color.red(),
+            timestamp=datetime.now(timezone.utc)
+        )
+        
+        usuario_apodo = obtener_nombre_usuario(interaction.user) if hasattr(interaction.user, 'nick') else str(interaction.user)
+        
+        embed.add_field(name="👤 Usuario", value=interaction.user.mention, inline=True)
+        embed.add_field(name="🏆 Equipo", value=f"`{team}`", inline=True)
+        embed.add_field(name="📱 Cuenta/Usuario", value=f"`{usuario_apodo}`", inline=True)
+        
+        # Agregar información de cada modelo
+        for modelo in modelos_data:
+            embed.add_field(
+                name=f"👩‍💼 Modelo {modelo['numero']}",
+                value=f"`{modelo['nombre']}`\n💵 Bruto: `${modelo['monto_bruto']:,.2f}`\n💰 Neto: `${modelo['monto_neto']:,.2f}`",
+                inline=True
+            )
+        
+        # Totales
+        embed.add_field(
+            name="📊 TOTALES",
+            value=f"💵 **Total Bruto**: `${monto_total_bruto:,.2f}`\n💰 **Total Neto**: `${monto_total_neto:,.2f}`",
+            inline=False
+        )
+        
+        embed.add_field(name="⏰ Fecha/Hora (Argentina)", value=f"`{datetime.now(TZ_ARGENTINA).strftime('%d/%m/%Y %H:%M:%S')}`", inline=False)
+        
+        if self.validacion_msg:
+            embed.add_field(name="⚠️ Observación", value=f"`{self.validacion_msg}`", inline=False)
+        
+        embed.set_footer(text=f"✅ Logout registrado en Hoja {team}")
+        return embed
+
+    async def _enviar_dm(self, interaction, embed, modelos_data, monto_total_bruto, team):
+        cantidad = len(modelos_data)
+        try:
+            dm_message = f"🔴 **Logout registrado exitosamente - Equipo {team}** ({cantidad} modelos)"
+            await interaction.user.send(content=dm_message, embed=embed)
+        except discord.Forbidden:
+            resumen = f"🔴 **Logout registrado exitosamente**\n🏆 **Equipo**: {team}\n"
+            for modelo in modelos_data:
+                resumen += f"👩‍💼 **Modelo {modelo['numero']}**: {modelo['nombre']} (${modelo['monto_bruto']:,.2f})\n"
+            resumen += f"💵 **Total**: ${monto_total_bruto:,.2f}\n💡 **Tip**: Activa los mensajes directos para recibir reportes completos."
+            
+            await interaction.followup.send(
+                content=resumen,
+                ephemeral=True
+            )
 
 # =========================
 # BOT SETUP
@@ -1286,5 +1472,4 @@ if __name__ == "__main__":
         print("❌ ERROR: Token inválido.")
     except Exception as e:
         print(f"❌ Error inesperado: {e}")
-
 
