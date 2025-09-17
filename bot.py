@@ -21,7 +21,7 @@ except ImportError:
 # CONFIGURACIÓN BÁSICA
 # =========================
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN") or "MTQwMzk1NjMwNDY5OTE5NTQ1Mw.GFGDK0.zf1SnzlJeuvGkZ3rsUlOAv2_RpONgAIY9stMW0"
-GOOGLE_SHEETS_WEBHOOK_URL = os.getenv("GOOGLE_SHEETS_WEBHOOK_URL") or "https://script.google.com/macros/s/AKfycbwjIgRW_6YPsJGE-twOXjEGJKzd5byyPF0JTl4DHeDEU-2TDSLVGQYlTppzUXOx5fAR/exec"
+GOOGLE_SHEETS_WEBHOOK_URL = os.getenv("GOOGLE_SHEETS_WEBHOOK_URL") or "https://script.google.com/macros/s/AKfycbysRzknOadhTnvq1Ll5iadXcfpaHU7r3DhbA7WXVf3bugmhHsFOXB5hg_j7_F9mD1xb/exec"
 
 # Para hosting: obtener PORT del entorno
 PORT = int(os.getenv("PORT", 5000))
@@ -46,28 +46,30 @@ breaks_activos = {}
 # =========================
 HORARIOS_USUARIOS = {
     # TEAM 1 - BlackTeam
-    "mauricio t1": {"inicio": "05:00", "fin": "13:00", "team": "T1"},
-    "mauricio blackteam": {"inicio": "05:00", "fin": "13:00", "team": "T1"},
-    "antonio t1": {"inicio": "13:00", "fin": "21:00", "team": "T1"},
-    "antonio blackteam": {"inicio": "13:00", "fin": "21:00", "team": "T1"},
+    "mauricio t1": {"inicio": "13:00", "fin": "21:00", "team": "T1"},
+    "mauricio blackteam": {"inicio": "13:00", "fin": "21:00", "team": "T1"},
+    "antonio t1": {"inicio": "05:00", "fin": "13:00", "team": "T1"},
+    "antonio blackteam": {"inicio": "05:00", "fin": "13:00", "team": "T1"},
     "hosman t1": {"inicio": "21:00", "fin": "05:00", "team": "T1"},
     "hosman blackteam": {"inicio": "21:00", "fin": "05:00", "team": "T1"},
     
     # TEAM 2 - RedTeam
-    "gleidys t2": {"inicio": "06:30", "fin": "13:30", "team": "T2"},
-    "gleidys redteam": {"inicio": "06:30", "fin": "13:30", "team": "T2"},
+    "gleidys t2": {"inicio": "06:30", "fin": "14:30", "team": "T2"},
+    "gleidys redteam": {"inicio": "06:30", "fin": "14:30", "team": "T2"},
+    "francisco t2": {"inicio": "14:30", "fin": "22:30", "team": "T2"},
+    "francisco redteam": {"inicio": "14:30", "fin": "22:30", "team": "T2"},
     "fran t2": {"inicio": "14:30", "fin": "22:30", "team": "T2"},
     "fran redteam": {"inicio": "14:30", "fin": "22:30", "team": "T2"},
     "luis t2": {"inicio": "22:30", "fin": "06:30", "team": "T2"},
     "luis redteam": {"inicio": "22:30", "fin": "06:30", "team": "T2"},
     
     # TEAM 3 - BlueTeam
-    "mariangela t3": {"inicio": "05:00", "fin": "13:00", "team": "T3"},
-    "mariangela blueteam": {"inicio": "05:00", "fin": "13:00", "team": "T3"},
+    "mariangela t3": {"inicio": "13:00", "fin": "21:00", "team": "T3"},
+    "mariangela blueteam": {"inicio": "13:00", "fin": "21:00", "team": "T3"},
     "stephen t3": {"inicio": "21:00", "fin": "05:00", "team": "T3"},
     "stephen blueteam": {"inicio": "21:00", "fin": "05:00", "team": "T3"},
-    "kyle t3": {"inicio": "13:00", "fin": "21:00", "team": "T3"},
-    "kyle blueteam": {"inicio": "13:00", "fin": "21:00", "team": "T3"}
+    "kyle t3": {"inicio": "05:00", "fin": "13:00", "team": "T3"},
+    "kyle blueteam": {"inicio": "05:00", "fin": "13:00", "team": "T3"}
 }
 
 def obtener_nombre_usuario(user: discord.Member) -> str:
